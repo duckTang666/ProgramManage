@@ -1,0 +1,56 @@
+
+
+.pageWrapper {
+  background-color: #F7FAFC;
+  min-height: 100vh;
+}
+
+.sidebarTransition {
+  transition: all 0.3s ease-in-out;
+}
+
+.navItemActive {
+  background-color: rgba(244, 130, 36, 0.1);
+  border-right: 3px solid #F48224;
+  color: #F48224;
+}
+
+.searchInputFocus:focus {
+  outline: none;
+  border-color: #F48224;
+  box-shadow: 0 0 0 3px rgba(244, 130, 36, 0.1);
+}
+
+.processStep {
+  position: relative;
+}
+
+.processStep:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 60px;
+  width: 2px;
+  height: calc(100% - 60px);
+  background: linear-gradient(to bottom, #F48224, #E2E8F0);
+}
+
+.stepNumber {
+  background: linear-gradient(135deg, #F48224, #624731);
+  color: white;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  position: relative;
+  z-index: 10;
+}
+
+.processCard {
+  background: linear-gradient(135deg, #FAE9DB 0%, #F7FAFC 100%);
+  border: 1px solid rgba(244, 130, 36, 0.2);
+}
+

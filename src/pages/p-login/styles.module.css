@@ -1,0 +1,131 @@
+
+
+/* 页面包装器样式 - 来自body标签 */
+.pageWrapper {
+  background: linear-gradient(to bottom right, #FAE9DB, #F7FAFC);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* 登录输入框焦点样式 */
+.loginInputFocus:focus {
+  outline: none;
+  border-color: #FF7043;
+  box-shadow: 0 0 0 3px rgba(255, 112, 67, 0.1);
+}
+
+/* 登录按钮悬停样式 */
+.loginButtonHover:hover {
+  background-color: #E65100;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(255, 112, 67, 0.3);
+}
+
+/* 教师端样式 */
+.teacherMode .loginInputFocus:focus {
+  border-color: #1E88E5;
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
+}
+
+.teacherMode .loginButtonHover:hover {
+  background-color: #0D47A1;
+  box-shadow: 0 10px 15px -3px rgba(30, 136, 229, 0.3);
+}
+
+.teacherMode .bgGradientToBr {
+  background-image: linear-gradient(to bottom right, #E6F2FF, #F7FAFC);
+}
+
+.teacherMode .bgSecondary {
+  background-color: #1E88E5;
+}
+
+.teacherMode .textSecondary {
+  color: #1E88E5;
+}
+
+.teacherMode .borderSecondary {
+  border-color: #1E88E5;
+}
+
+.teacherMode .hoverTextAccent:hover {
+  color: #0D47A1;
+}
+
+/* 管理员端样式 */
+.adminMode .loginInputFocus:focus {
+  border-color: #2E7D32;
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+.adminMode .loginButtonHover:hover {
+  background-color: #1B5E20;
+  box-shadow: 0 10px 15px -3px rgba(46, 125, 50, 0.3);
+}
+
+.adminMode .bgGradientToBr {
+  background-image: linear-gradient(to bottom right, #E8F5E9, #F7FAFC);
+}
+
+.adminMode .bgSecondary {
+  background-color: #2E7D32;
+}
+
+.adminMode .textSecondary {
+  color: #2E7D32;
+}
+
+.adminMode .borderSecondary {
+  border-color: #2E7D32;
+}
+
+.adminMode .hoverTextAccent:hover {
+  color: #1B5E20;
+}
+
+/* 学生端样式 */
+.studentMode .bgSecondary {
+  background-color: #FF7043;
+}
+
+.studentMode .textSecondary {
+  color: #FF7043;
+}
+
+.studentMode .borderSecondary {
+  border-color: #FF7043;
+}
+
+.studentMode .hoverTextAccent:hover {
+  color: #E65100;
+}
+
+/* 登录按钮激活状态 */
+.loginButtonActive:active {
+  transform: translateY(0);
+}
+
+/* 错误抖动动画 */
+.errorShake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* 淡入动画 */
+.fadeIn {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

@@ -1,0 +1,58 @@
+
+
+.sidebarItemActive {
+  background-color: #E3F2FD;
+  border-left: 4px solid #1E88E5;
+}
+
+.sidebarItemHover:hover {
+  background-color: #E3F2FD;
+}
+
+.cardHover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.fadeIn {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.statusBadge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.statusPublished {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.statusPending {
+  background-color: #FFF3E0;
+  color: #E65100;
+}
+
+.statusRejected {
+  background-color: #FFEBEE;
+  color: #C62828;
+}
+
+.statusDraft {
+  background-color: #E3F2FD;
+  color: #1565C0;
+}
+

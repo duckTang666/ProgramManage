@@ -1,0 +1,54 @@
+
+
+.pageWrapper {
+  background-color: #F7FAFC;
+  min-height: 100vh;
+}
+
+.sidebarTransition {
+  transition: all 0.3s ease-in-out;
+}
+
+.navItemActive {
+  background-color: rgba(255, 127, 80, 0.1);
+  border-right: 3px solid #FF7F50;
+  color: #FF7F50;
+}
+
+.searchInputFocus:focus {
+  outline: none;
+  border-color: #FF7F50;
+  box-shadow: 0 0 0 3px rgba(255, 127, 80, 0.1);
+}
+
+.tableRowHover:hover {
+  background-color: rgba(255, 127, 80, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.projectLink {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.projectLink:hover {
+  color: #FF7F50;
+  text-decoration: underline;
+  cursor: pointer;
+  max-width: none;
+  position: relative;
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 0 2px;
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+

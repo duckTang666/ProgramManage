@@ -1,0 +1,61 @@
+
+
+.pageWrapper {
+  background-color: #F7FAFC;
+  min-height: 100vh;
+}
+
+.sidebarTransition {
+  transition: all 0.3s ease-in-out;
+}
+
+.navItemActive {
+  background-color: rgba(255, 127, 0, 0.1);
+  border-right: 3px solid #FF7F00;
+  color: #FF7F00;
+}
+
+.searchInputFocus:focus {
+  outline: none;
+  border-color: #FF7F00;
+  box-shadow: 0 0 0 3px rgba(255, 127, 0, 0.1);
+}
+
+.projectImage {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.projectImage:hover {
+  transform: scale(1.02);
+}
+
+.markdownContent h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #2D3748;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdownContent p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+.markdownContent ul {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.markdownContent li {
+  margin-bottom: 0.5rem;
+  line-height: 1.7;
+}
+
+.memberTag {
+  background-color: rgba(255, 127, 0, 0.1);
+  color: #FF7F00;
+  border: 1px solid rgba(255, 127, 0, 0.2);
+}
+

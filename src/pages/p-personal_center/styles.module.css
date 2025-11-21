@@ -1,0 +1,40 @@
+
+
+.pageWrapper {
+  background-color: #F7FAFC;
+  min-height: 100vh;
+}
+
+.sidebarTransition {
+  transition: all 0.3s ease-in-out;
+}
+
+.navItemActive {
+  background-color: rgba(255, 127, 42, 0.1);
+  border-right: 3px solid #FF7F2A;
+  color: #FF7F2A;
+}
+
+.searchInputFocus:focus {
+  outline: none;
+  border-color: #FF7F2A;
+  box-shadow: 0 0 0 3px rgba(255, 127, 42, 0.1);
+}
+
+.editMode .editableField {
+  border: 1px solid #E2E8F0;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: #FFFFFF;
+}
+
+.notificationItem:hover {
+  background-color: #F7FAFC;
+  transition: background-color 0.2s ease;
+}
+
+.projectItem:hover {
+  background-color: #F7FAFC;
+  transition: background-color 0.2s ease;
+}
+

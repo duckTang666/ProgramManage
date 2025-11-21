@@ -1,0 +1,51 @@
+
+
+.pageWrapper {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #F7FAFC;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarItem {
+  transition: all 0.3s ease;
+}
+
+.sidebarItem:hover {
+  background-color: rgba(46, 125, 50, 0.1);
+}
+
+.sidebarItemActive {
+  background-color: rgba(46, 125, 50, 0.15);
+  border-left: 3px solid #2E7D32;
+}
+
+.cardHover {
+  transition: all 0.3s ease;
+}
+
+.cardHover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.fadeIn {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.knowledgeCard {
+  border-left: 4px solid #2E7D32;
+}
+
