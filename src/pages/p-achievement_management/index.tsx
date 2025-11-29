@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
 import { Achievement, User } from '../../types/achievement';
 import styles from './styles.module.css';
@@ -7,6 +7,7 @@ import styles from './styles.module.css';
 type FilterType = 'all' | 'published' | 'pending' | 'rejected' | 'draft';
 
 const AchievementManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,7 +82,7 @@ const AchievementManagement: React.FC = () => {
 
   // 编辑成果
   const handleEditAchievement = (achievementId: string) => {
-    alert(`编辑成果 ${achievementId}`);
+    navigate(`/achievement-edit/${achievementId}`);
   };
 
   // 删除成果

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
-import { Achievement, User } from '../../types/achievement';
+import { Achievement, User, AchievementWithUsers } from '../../types/achievement';
 import styles from './styles.module.css';
 
 const AchievementViewPage: React.FC = () => {
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState('view-link');
   const [searchFilters, setSearchFilters] = useState({
@@ -17,6 +18,11 @@ const AchievementViewPage: React.FC = () => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // 模态框状态
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [currentAchievement, setCurrentAchievement] = useState<AchievementWithUsers | null>(null);
+  const [currentAchievementId, setCurrentAchievementId] = useState<string | null>(null);
 
   // 设置页面标题并加载数据
   useEffect(() => {
@@ -79,6 +85,34 @@ const AchievementViewPage: React.FC = () => {
 
   const handleNotificationClick = () => {
     alert('通知功能开发中...');
+  };
+
+  // 关闭详情模态框
+  const handleCloseDetailModal = () => {
+    setShowDetailModal(false);
+    setCurrentAchievement(null);
+    setCurrentAchievementId(null);
+  };
+
+  // 模态框外部点击关闭
+  const handleModalBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleCloseDetailModal();
+    }
+  };
+
+  // 查看成果详情
+  const handleViewDetail = async (achievementId: string) => {
+    setCurrentAchievementId(achievementId);
+    
+    // 获取详细的成果信息
+    const result = await AchievementService.getAchievementWithUsersById(achievementId);
+    if (result.success && result.data) {
+      setCurrentAchievement(result.data);
+      setShowDetailModal(true);
+    } else {
+      alert('获取成果详情失败：' + (result.message || '未知错误'));
+    }
   };
 
   // 状态样式映射
@@ -383,7 +417,10 @@ const AchievementViewPage: React.FC = () => {
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex items-center justify-center space-x-2">
-                              <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                              <button 
+                                onClick={() => handleViewDetail(achievement.id)}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
                                 查看详情
                               </button>
                             </div>
@@ -398,6 +435,155 @@ const AchievementViewPage: React.FC = () => {
           </div>
         </main>
       </div>
+      
+      {/* 成果详情模态框 */}
+      {showDetailModal && currentAchievement && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={handleModalBackdropClick}
+        >
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* 模态框头部 */}
+            <div className="p-6 border-b border-border-light flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-text-primary">
+                成果详情: {currentAchievement.title}
+              </h3>
+              <button 
+                onClick={handleCloseDetailModal}
+                className="text-text-muted hover:text-text-primary"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            
+            {/* 模态框内容 */}
+            <div className="p-6 overflow-y-auto flex-grow">
+              <div className="space-y-6">
+                {/* 成果基本信息 */}
+                <div>
+                  <h4 className="text-lg font-medium text-text-primary mb-4">成果信息</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-bg-gray p-4 rounded-lg">
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">成果名称</p>
+                      <p className="text-text-primary font-medium">{currentAchievement.title}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">成果类型</p>
+                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                        {currentAchievement.type?.name || '其他'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">发布学生</p>
+                      <p className="text-text-primary">
+                        {currentAchievement.publisher?.username} ({currentAchievement.publisher?.email})
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">指导老师</p>
+                      <p className="text-text-primary">
+                        {currentAchievement.instructor?.username || '未指定'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">当前状态</p>
+                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                        {currentAchievement.status === 'pending' ? '待审核' : 
+                         currentAchievement.status === 'approved' ? '已通过' : 
+                         currentAchievement.status === 'rejected' ? '已拒绝' : '草稿'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">评分</p>
+                      <p className="text-text-primary font-medium">
+                        {currentAchievement.score !== null && currentAchievement.score !== undefined ? (
+                          <span className={`font-bold ${
+                            currentAchievement.score >= 90 ? 'text-green-600' :
+                            currentAchievement.score >= 80 ? 'text-blue-600' :
+                            currentAchievement.score >= 70 ? 'text-amber-600' :
+                            'text-red-600'
+                          }`}>
+                            {currentAchievement.score} 分
+                          </span>
+                        ) : (
+                          <span className="text-text-muted">未评分</span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-text-muted mb-1">提交时间</p>
+                      <p className="text-text-primary">
+                        {new Date(currentAchievement.created_at).toLocaleString('zh-CN')}
+                      </p>
+                    </div>
+                    {currentAchievement.parent?.username && (
+                      <div>
+                        <p className="text-sm text-text-muted mb-1">合作伙伴</p>
+                        <p className="text-text-primary">
+                          {currentAchievement.parent.username}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* 封面图片 */}
+                {currentAchievement.cover_url && (
+                  <div>
+                    <h4 className="text-lg font-medium text-text-primary mb-4">封面图片</h4>
+                    <div className="bg-bg-gray p-4 rounded-lg">
+                      <img 
+                        src={currentAchievement.cover_url} 
+                        alt="成果封面" 
+                        className="w-full max-w-md h-auto rounded-lg shadow-md mx-auto"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {/* 成果内容 */}
+                <div>
+                  <h4 className="text-lg font-medium text-text-primary mb-4">成果描述</h4>
+                  <div className="bg-bg-gray p-4 rounded-lg">
+                    <div 
+                      className="prose max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: currentAchievement.description || '<p class="text-text-muted">暂无描述内容</p>' 
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                {/* 演示视频 */}
+                {currentAchievement.video_url && (
+                  <div>
+                    <h4 className="text-lg font-medium text-text-primary mb-4">演示视频</h4>
+                    <div className="bg-bg-gray p-4 rounded-lg">
+                      <video 
+                        controls 
+                        className="w-full max-w-md h-auto rounded-lg mx-auto"
+                        src={currentAchievement.video_url}
+                      >
+                        您的浏览器不支持视频播放
+                      </video>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 模态框底部 */}
+            <div className="p-6 border-t border-border-light flex justify-end">
+              <button 
+                onClick={handleCloseDetailModal}
+                className="px-6 py-2 bg-secondary text-white rounded-lg hover:bg-accent transition-colors"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
