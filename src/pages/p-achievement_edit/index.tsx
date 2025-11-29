@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
 import { RichTextEditor } from '../../lib/richTextEditor';
 import { ACHIEVEMENT_TYPES, AchievementType, User, Achievement } from '../../types/achievement';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
 
 interface FileUpload {
@@ -88,9 +89,10 @@ const UserSelectModal: React.FC<UserSelectModalProps> = ({
 const AchievementEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   
-  // 假设当前用户ID（实际应该从登录状态或localStorage获取）
-  const currentUserId = '7a482e3f-93c3-467c-9f4a-7fea2084b093'; // tyj, role=2 (教师)
+  // 获取当前用户ID
+  const currentUserId = user?.id || '';
   
   // 页面状态
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
 import { AchievementWithUsers, User, AchievementStatus } from '../../types/achievement';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
 
 const AchievementDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   
   // 从URL参数获取成果ID
   const achievementId = searchParams.get('id');
   
-  // 假设当前用户ID（实际应该从登录状态或localStorage获取）
-  const currentUserId = '7a482e3f-93c3-467c-9f4a-7fea2084b093'; // tyj, role=2 (教师)
+  // 获取当前用户ID
+  const currentUserId = user?.id || '';
   
   // 页面状态
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

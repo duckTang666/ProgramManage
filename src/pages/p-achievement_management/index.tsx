@@ -2,17 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
 import { Achievement, User } from '../../types/achievement';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
 
 type FilterType = 'all' | 'published' | 'pending' | 'rejected' | 'draft';
 
 const AchievementManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [isLoading, setIsLoading] = useState(true);
 
   // 设置页面标题并加载数据
@@ -31,8 +33,8 @@ const AchievementManagement: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // 获取当前用户ID（这里应该从登录状态获取，暂时使用教师ID）
-      const currentUserId = '7a482e3f-93c3-467c-9f4a-7fea2084b093'; // tyj, role=2 (教师)
+      // 获取当前用户ID
+      const currentUserId = user?.id || '';
       
       // 获取当前用户信息
       const userResult = await AchievementService.getCurrentUser(currentUserId);
