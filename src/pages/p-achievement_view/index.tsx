@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
-import { Achievement, User, AchievementWithUsers } from '../../types/achievement';
+import { Achievement, User, AchievementWithUsers, AchievementType } from '../../types/achievement';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
 
@@ -20,6 +20,7 @@ const AchievementViewPage: React.FC = () => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(user);
   const [isLoading, setIsLoading] = useState(true);
+  const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>([]);
   
   // 模态框状态
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -31,11 +32,27 @@ const AchievementViewPage: React.FC = () => {
     const originalTitle = document.title;
     document.title = '软院项目通 - 成果查看';
     
-    // 加载所有学生的成果
-    loadAllStudentAchievements();
+    // 加载初始数据
+    loadInitialData();
     
     return () => { document.title = originalTitle; };
   }, []);
+  
+  // 加载初始数据
+  const loadInitialData = async () => {
+    // 加载成果类型
+    try {
+      const typesResult = await AchievementService.getAchievementTypes();
+      if (typesResult.success && typesResult.data) {
+        setAchievementTypes(typesResult.data);
+      }
+    } catch (error) {
+      console.error('加载成果类型失败:', error);
+    }
+    
+    // 加载学生成果
+    await loadAllStudentAchievements();
+  };
 
   // 加载所有学生的成果数据
   const loadAllStudentAchievements = async () => {
@@ -62,7 +79,7 @@ const AchievementViewPage: React.FC = () => {
           }
         } else if (userResult.data.role === 2) {
           // 如果是教师 (role=2)，查看所有学生成果
-          const achievementsResult = await AchievementService.getAchievementsByRole(1); // role=1 是学生，获取所有学生成果
+          const achievementsResult = await AchievementService.getAchievementsByRole(2); // role=2 是教师，获取所有学生成果
           if (achievementsResult.success) {
             setAchievements(achievementsResult.data || []);
             console.log('📊 所有学生成果加载成功:', achievementsResult.data?.length, '条');
@@ -341,10 +358,11 @@ const AchievementViewPage: React.FC = () => {
                       className="w-full px-4 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
                     >
                       <option value="">全部类型</option>
-                      <option value="项目报告">项目报告</option>
-                      <option value="论文">论文</option>
-                      <option value="软件作品">软件作品</option>
-                      <option value="实验报告">实验报告</option>
+                      {achievementTypes.map(type => (
+                        <option key={type.id} value={type.name}>
+                          {type.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>

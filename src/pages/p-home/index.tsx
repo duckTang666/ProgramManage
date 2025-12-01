@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { StatisticsService } from '../../lib/statisticsService';
 import styles from './styles.module.css';
 
 const HomePage: React.FC = () => {
@@ -13,6 +14,7 @@ const HomePage: React.FC = () => {
   const [projectSearchTerm, setProjectSearchTerm] = useState<string>('');
   const [projectTypeFilter, setProjectTypeFilter] = useState<string>('');
   const [activePage, setActivePage] = useState<number>(1);
+  const [stats, setStats] = useState<any>(null);
   const chartRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -32,7 +34,7 @@ const HomePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // 初始化饼图
+    // 初始化旧的饼图（保留以防其他地方还在使用）
     const ctx = chartRef.current?.getContext('2d');
     if (ctx) {
       const Chart = (window as any).Chart;
@@ -68,6 +70,166 @@ const HomePage: React.FC = () => {
       }
     }
   }, []);
+
+  // 初始化学生数据看板图表
+  useEffect(() => {
+    const Chart = (window as any).Chart;
+    if (!Chart) {
+      // 如果Chart.js未加载，动态加载
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+      script.onload = () => initializeStudentCharts();
+      document.head.appendChild(script);
+      return () => {
+        if (document.head.contains(script)) {
+          document.head.removeChild(script);
+        }
+      };
+    } else {
+      initializeStudentCharts();
+    }
+  }, []);
+
+  const initializeStudentCharts = async () => {
+    const Chart = (window as any).Chart;
+    
+    try {
+      console.log('🚀 开始初始化学生图表...');
+      // 获取学生统计数据
+      const statsData = await StatisticsService.getStudentStatistics();
+      console.log('📊 获取到的统计数据:', statsData);
+      setStats(statsData);
+      
+      // 发布量统计图（柱状图）
+      const publishCtx = document.getElementById('student-publish-chart') as HTMLCanvasElement;
+      if (publishCtx && !publishCtx.dataset.initialized) {
+        const ctx = publishCtx.getContext('2d');
+        if (ctx) {
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: statsData.publicationByType.labels,
+              datasets: [{
+                label: '发布数量',
+                data: statsData.publicationByType.data,
+                backgroundColor: [
+                  'rgba(255, 140, 0, 0.8)',
+                  'rgba(255, 140, 0, 0.7)',
+                  'rgba(255, 140, 0, 0.6)',
+                  'rgba(255, 140, 0, 0.5)',
+                  'rgba(255, 140, 0, 0.4)'
+                ],
+                borderColor: 'rgba(255, 140, 0, 1)',
+                borderWidth: 2,
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  padding: 12,
+                  cornerRadius: 8
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: {
+                    color: 'rgba(0, 0, 0, 0.05)'
+                  },
+                  ticks: {
+                    precision: 0
+                  }
+                },
+                x: {
+                  grid: {
+                    display: false
+                  }
+                }
+              }
+            }
+          });
+          publishCtx.dataset.initialized = 'true';
+        }
+      }
+
+      // 成绩折线图
+      const scoreCtx = document.getElementById('student-score-chart') as HTMLCanvasElement;
+      if (scoreCtx && !scoreCtx.dataset.initialized) {
+        const ctx = scoreCtx.getContext('2d');
+        if (ctx) {
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: statsData.scoreTrend.labels,
+              datasets: [{
+                label: '成绩',
+                data: statsData.scoreTrend.scores,
+                borderColor: 'rgba(255, 140, 0, 1)',
+                backgroundColor: 'rgba(255, 140, 0, 0.1)',
+                borderWidth: 3,
+                pointBackgroundColor: 'rgba(255, 140, 0, 1)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                tension: 0.3,
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  padding: 12,
+                  cornerRadius: 8,
+                  callbacks: {
+                    label: function(context: any) {
+                      return '成绩: ' + context.parsed.y + '分';
+                    }
+                  }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: false,
+                  min: 70,
+                  max: 100,
+                  grid: {
+                    color: 'rgba(0, 0, 0, 0.05)'
+                  },
+                  ticks: {
+                    callback: function(value: any) {
+                      return value + '分';
+                    }
+                  }
+                },
+                x: {
+                  grid: {
+                    display: false
+                  }
+                }
+              }
+            }
+          });
+          scoreCtx.dataset.initialized = 'true';
+        }
+      }
+    } catch (error) {
+      console.error('初始化学生图表失败:', error);
+    }
+  };
 
   const handleGlobalSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -235,57 +397,74 @@ const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* 数据统计模块 */}
+        {/* 学生数据看板 */}
         <section className="bg-bg-light rounded-2xl shadow-card p-6 mb-8">
           <h3 className="text-xl font-bold text-text-primary mb-6 flex items-center">
-            <i className="fas fa-chart-pie text-orange-500 mr-3"></i>
-            项目数据统计
+            <i className="fas fa-chart-line text-orange-500 mr-3"></i>
+            我的数据看板
           </h3>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 统计卡片 */}
-            <div className="lg:col-span-1 space-y-4">
-              <div className={`${styles.statCard} rounded-xl p-4`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-muted text-sm">项目总数</p>
-                    <p className="text-3xl font-bold text-text-primary">128</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-500 bg-opacity-20 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-folder text-orange-500 text-xl"></i>
-                  </div>
+          
+          {/* 统计卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-xl p-6 border border-border-light">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-text-muted mb-1">参与项目总数</p>
+                  <p className="text-2xl font-bold text-text-primary">
+                    {stats?.studentStats?.totalProjects || 0}
+                  </p>
                 </div>
-              </div>
-              <div className={`${styles.statCard} rounded-xl p-4`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-muted text-sm">课程项目</p>
-                    <p className="text-3xl font-bold text-text-primary">95</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-400 bg-opacity-20 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-graduation-cap text-orange-400 text-xl"></i>
-                  </div>
-                </div>
-              </div>
-              <div className={`${styles.statCard} rounded-xl p-4`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-text-muted text-sm">科研项目</p>
-                    <p className="text-3xl font-bold text-text-primary">33</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-500 bg-opacity-20 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-flask text-orange-500 text-xl"></i>
-                  </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <i className="fas fa-folder text-blue-600 text-xl"></i>
                 </div>
               </div>
             </div>
             
-            {/* 饼图 */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl p-6 border border-border-light">
-                <h4 className="text-lg font-semibold text-text-primary mb-4">项目类型分布</h4>
-                <div className="h-64">
-                  <canvas ref={chartRef}></canvas>
+            <div className="bg-white rounded-xl p-6 border border-border-light">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-text-muted mb-1">平均成绩</p>
+                  <p className="text-2xl font-bold text-text-primary">
+                    {stats?.studentStats?.averageScore?.toFixed(2) || '0.00'}
+                  </p>
                 </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <i className="fas fa-chart-bar text-green-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl p-6 border border-border-light">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-text-muted mb-1">项目完成率</p>
+                  <p className="text-2xl font-bold text-text-primary">
+                    {stats?.studentStats?.completionRate?.toFixed(2) || '0.00'}%
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <i className="fas fa-check-circle text-orange-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* 发布量统计图 */}
+          <div className="mb-8">
+            <div className="bg-white rounded-xl p-6 border border-border-light">
+              <h4 className="text-lg font-semibold text-text-primary mb-4">发布量统计（按类型）</h4>
+              <div className="h-80">
+                <canvas id="student-publish-chart" className="w-full h-full"></canvas>
+              </div>
+            </div>
+          </div>
+          
+          {/* 成绩折线图 */}
+          <div>
+            <div className="bg-white rounded-xl p-6 border border-border-light">
+              <h4 className="text-lg font-semibold text-text-primary mb-4">成绩趋势图</h4>
+              <div className="h-80">
+                <canvas id="student-score-chart" className="w-full h-full"></canvas>
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { StatisticsService } from '../../lib/statisticsService';
 import styles from './styles.module.css';
 
 // 声明Chart.js的全局类型
@@ -73,88 +74,145 @@ const TeacherHomePage: React.FC = () => {
     };
   }, []);
 
-  const initializeCharts = () => {
-    // 成果发布量统计图表
-    const publicationCtx = document.getElementById('publication-chart') as HTMLCanvasElement;
-    if (publicationCtx && !publicationChartRef.current) {
-      const ctx = publicationCtx.getContext('2d');
-      if (ctx) {
-        publicationChartRef.current = new window.Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
-            datasets: [{
-              label: '已发布',
-              data: [12, 19, 15, 22, 18, 25],
-              backgroundColor: '#1E88E5',
-              borderRadius: 6
-            }, {
-              label: '待审批',
-              data: [5, 8, 10, 7, 12, 15],
-              backgroundColor: '#FFC107',
-              borderRadius: 6
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'top',
-              }
+  const initializeCharts = async () => {
+    try {
+      // 获取教师统计数据
+      const stats = await StatisticsService.getTeacherStatistics();
+      
+      // 个人发布量统计图表 - 按发布类型统计（柱状图）
+      const publicationCtx = document.getElementById('publication-chart') as HTMLCanvasElement;
+      if (publicationCtx && !publicationChartRef.current) {
+        const ctx = publicationCtx.getContext('2d');
+        if (ctx) {
+          publicationChartRef.current = new window.Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: stats.publicationByType.labels,
+              datasets: [{
+                label: '发布数量',
+                data: stats.publicationByType.data,
+                backgroundColor: [
+                  '#1E88E5',
+                  '#43A047',
+                  '#FB8C00',
+                  '#8E24AA',
+                  '#757575'
+                ],
+                borderColor: [
+                  '#1E88E5',
+                  '#43A047',
+                  '#FB8C00',
+                  '#8E24AA',
+                  '#757575'
+                ],
+                borderWidth: 2,
+                borderRadius: 8
+              }]
             },
-            scales: {
-              y: {
-                beginAtZero: true,
-                grid: {
-                  display: true,
-                  color: 'rgba(0, 0, 0, 0.05)'
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  padding: 12,
+                  cornerRadius: 8,
+                  callbacks: {
+                    label: function(context) {
+                      return `${context.label}: ${context.raw}个项目`;
+                    }
+                  }
                 }
               },
-              x: {
-                grid: {
-                  display: false
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: {
+                    color: 'rgba(0, 0, 0, 0.05)'
+                  },
+                  ticks: {
+                    precision: 0
+                  }
+                },
+                x: {
+                  grid: {
+                    display: false
+                  }
                 }
               }
             }
-          }
-        });
+          });
+        }
       }
-    }
 
-    // 成果类型分布图表
-    const resultTypesCtx = document.getElementById('result-types-chart') as HTMLCanvasElement;
-    if (resultTypesCtx && !resultTypesChartRef.current) {
-      const ctx = resultTypesCtx.getContext('2d');
-      if (ctx) {
-        resultTypesChartRef.current = new window.Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: ['项目报告', '论文', '软件作品', '实验报告', '其他'],
-            datasets: [{
-              data: [35, 25, 20, 15, 5],
-              backgroundColor: [
-                '#1E88E5',
-                '#43A047',
-                '#FB8C00',
-                '#8E24AA',
-                '#757575'
-              ],
-              borderWidth: 0
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'right',
-              }
+      // 学生发布量统计图表 - 按分数统计
+      const resultTypesCtx = document.getElementById('result-types-chart') as HTMLCanvasElement;
+      if (resultTypesCtx && !resultTypesChartRef.current) {
+        const ctx = resultTypesCtx.getContext('2d');
+        if (ctx) {
+          resultTypesChartRef.current = new window.Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: stats.studentPublications.labels,
+              datasets: [{
+                label: '优秀 (90-100分)',
+                data: stats.studentPublications.excellent,
+                backgroundColor: '#4CAF50',
+                borderRadius: 4
+              }, {
+                label: '良好 (80-89分)',
+                data: stats.studentPublications.good,
+                backgroundColor: '#2196F3',
+                borderRadius: 4
+              }, {
+                label: '中等 (70-79分)',
+                data: stats.studentPublications.average,
+                backgroundColor: '#FF9800',
+                borderRadius: 4
+              }, {
+                label: '及格 (60-69分)',
+                data: stats.studentPublications.pass,
+                backgroundColor: '#9E9E9E',
+                borderRadius: 4
+              }]
             },
-            cutout: '70%'
-          }
-        });
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'top',
+                },
+                tooltip: {
+                  mode: 'index',
+                  intersect: false
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  stacked: true,
+                  grid: {
+                    display: true,
+                    color: 'rgba(0, 0, 0, 0.05)'
+                  }
+                },
+                x: {
+                  stacked: true,
+                  grid: {
+                    display: false
+                  }
+                }
+              }
+            }
+          });
+        }
       }
+    } catch (error) {
+      console.error('初始化教师图表失败:', error);
     }
   };
 
@@ -291,14 +349,6 @@ const TeacherHomePage: React.FC = () => {
             <ul>
               <li>
                 <button 
-                  className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover} w-full text-left`}
-                >
-                  <i className="fas fa-user-cog w-6 text-center"></i>
-                  <span className="ml-3">设置</span>
-                </button>
-              </li>
-              <li>
-                <button 
                   onClick={handleLogout}
                   className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover} w-full text-left`}
                 >
@@ -424,11 +474,11 @@ const TeacherHomePage: React.FC = () => {
             </div>
             
             {/* 图表区域 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* 成果发布量统计 */}
+            <div className="space-y-6 mb-8">
+              {/* 个人发布量统计图 - 上方区域 */}
               <div className={`bg-white rounded-xl shadow-card p-6 ${styles.fadeIn}`} style={{animationDelay: '0.4s'}}>
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-text-primary">成果发布量统计</h3>
+                  <h3 className="text-lg font-semibold text-text-primary">个人发布量统计图（按发布类型统计）</h3>
                   <div className="flex space-x-2">
                     <button 
                       onClick={() => handleViewTypeChange('monthly')}
@@ -462,24 +512,97 @@ const TeacherHomePage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <div className="h-80">
-                  <canvas id="publication-chart"></canvas>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2">
+                    <div className="h-80">
+                      <canvas id="publication-chart"></canvas>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h5 className="font-semibold text-text-primary">发布类型详情</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                        <span className="text-sm font-medium">项目报告</span>
+                        <span className="text-sm font-bold text-blue-600">35个</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <span className="text-sm font-medium">论文</span>
+                        <span className="text-sm font-bold text-green-600">25个</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                        <span className="text-sm font-medium">软件作品</span>
+                        <span className="text-sm font-bold text-orange-600">20个</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                        <span className="text-sm font-medium">实验报告</span>
+                        <span className="text-sm font-bold text-purple-600">15个</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium">其他</span>
+                        <span className="text-sm font-bold text-gray-600">5个</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
-              {/* 成果类型分布 */}
+              {/* 学生发布量统计图 - 下方区域 */}
               <div className={`bg-white rounded-xl shadow-card p-6 ${styles.fadeIn}`} style={{animationDelay: '0.5s'}}>
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-text-primary">成果类型分布</h3>
-                  <button 
-                    onClick={handleRefreshTypes}
-                    className="text-secondary hover:text-accent"
-                  >
-                    <i className={`fas fa-sync-alt ${isRefreshingTypes ? 'fa-spin' : ''}`}></i>
-                  </button>
+                  <h3 className="text-lg font-semibold text-text-primary">学生发布量统计图（作为指导老师的成果发布统计）</h3>
+                  <div className="flex space-x-2">
+                    <button className="px-3 py-1 text-xs bg-secondary text-white rounded-full">按分数</button>
+                    <button className="px-3 py-1 text-xs bg-bg-gray text-text-secondary rounded-full">按类型</button>
+                    <button className="px-3 py-1 text-xs bg-bg-gray text-text-secondary rounded-full">按时间</button>
+                  </div>
                 </div>
-                <div className="h-80 flex items-center justify-center">
-                  <canvas id="result-types-chart"></canvas>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2">
+                    <div className="h-80">
+                      <canvas id="result-types-chart"></canvas>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h5 className="font-semibold text-text-primary">分数段分布</h5>
+                    <div className="space-y-2">
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium">优秀 (90-100分)</span>
+                          <span className="text-sm font-bold text-green-600">18个</span>
+                        </div>
+                        <div className="w-full bg-green-200 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: '40%'}}></div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium">良好 (80-89分)</span>
+                          <span className="text-sm font-bold text-blue-600">22个</span>
+                        </div>
+                        <div className="w-full bg-blue-200 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: '49%'}}></div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-orange-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium">中等 (70-79分)</span>
+                          <span className="text-sm font-bold text-orange-600">3个</span>
+                        </div>
+                        <div className="w-full bg-orange-200 rounded-full h-2">
+                          <div className="bg-orange-500 h-2 rounded-full" style={{width: '7%'}}></div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium">及格 (60-69分)</span>
+                          <span className="text-sm font-bold text-gray-600">2个</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-gray-500 h-2 rounded-full" style={{width: '4%'}}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

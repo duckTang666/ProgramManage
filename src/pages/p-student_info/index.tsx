@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Chart, registerables } from 'chart.js';
 import { useAuth } from '../../contexts/AuthContext';
+import { StatisticsService, StatisticsData } from '../../lib/statisticsService';
 import styles from './styles.module.css';
 
 Chart.register(...registerables);
@@ -14,6 +15,8 @@ const StudentInfoPage: React.FC = () => {
   const [globalSearchValue, setGlobalSearchValue] = useState('');
   const [selectedTimeRange, setSelectedTimeRange] = useState('semester');
   const [lastUpdateTime, setLastUpdateTime] = useState('');
+  const [stats, setStats] = useState<StatisticsData | null>(null);
+  const [loading, setLoading] = useState(true);
   const publicationChartRef = useRef<HTMLCanvasElement>(null);
   const scoreChartRef = useRef<HTMLCanvasElement>(null);
   const publicationChartInstanceRef = useRef<Chart | null>(null);
@@ -34,7 +37,26 @@ const StudentInfoPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    initCharts();
+    const loadStatistics = async () => {
+      try {
+        setLoading(true);
+        const statsData = await StatisticsService.getStudentStatistics();
+        console.log('📊 获取到的学生统计数据:', statsData);
+        setStats(statsData);
+      } catch (error) {
+        console.error('获取统计数据失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStatistics();
+  }, []);
+
+  useEffect(() => {
+    if (stats) {
+      initCharts();
+    }
     return () => {
       if (publicationChartInstanceRef.current) {
         publicationChartInstanceRef.current.destroy();
@@ -45,7 +67,7 @@ const StudentInfoPage: React.FC = () => {
         scoreChartInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [stats]);
 
   const handleGlobalSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -74,23 +96,24 @@ const StudentInfoPage: React.FC = () => {
   };
 
   const initCharts = () => {
+    if (!stats) return;
+
     // 发布量统计图
     if (publicationChartRef.current) {
       const publicationCtx = publicationChartRef.current.getContext('2d');
       if (publicationCtx) {
+        const colors = [
+          '#FF7F50', '#FFA07A', '#FFD700', '#FFE4B5', '#FFFAF0',
+          '#87CEEB', '#98FB98', '#DDA0DD', '#F0E68C', '#FFB6C1'
+        ];
+        
         publicationChartInstanceRef.current = new Chart(publicationCtx, {
           type: 'doughnut',
           data: {
-            labels: ['Web应用', '移动应用', '数据分析', '人工智能', '其他'],
+            labels: stats.publicationByType.labels,
             datasets: [{
-              data: [4, 3, 2, 2, 1],
-              backgroundColor: [
-                '#FF7F50',
-                '#FFA07A',
-                '#FFD700',
-                '#FFE4B5',
-                '#FFFAF0'
-              ],
+              data: stats.publicationByType.data,
+              backgroundColor: stats.publicationByType.labels.map((_, index) => colors[index % colors.length]),
               borderWidth: 0
             }]
           },
@@ -132,10 +155,10 @@ const StudentInfoPage: React.FC = () => {
         scoreChartInstanceRef.current = new Chart(scoreCtx, {
           type: 'line',
           data: {
-            labels: ['项目1', '项目2', '项目3', '项目4', '项目5', '项目6', '项目7', '项目8'],
+            labels: stats.scoreTrend.labels,
             datasets: [{
               label: '项目成绩',
-              data: [85, 82, 88, 90, 86, 92, 89, 94],
+              data: stats.scoreTrend.scores,
               borderColor: '#FF7F50',
               backgroundColor: 'rgba(255, 127, 80, 0.1)',
               borderWidth: 3,
@@ -334,7 +357,9 @@ const StudentInfoPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-muted text-sm">参与项目总数</p>
-                  <h4 className="text-3xl font-bold text-text-primary mt-1">12</h4>
+                  <h4 className="text-3xl font-bold text-text-primary mt-1">
+                    {loading ? '...' : (stats?.studentStats?.totalProjects || 0)}
+                  </h4>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
                   <i className="fas fa-folder-open text-orange-500 text-xl"></i>
@@ -342,9 +367,9 @@ const StudentInfoPage: React.FC = () => {
               </div>
               <div className="mt-3 flex items-center text-sm">
                 <span className="text-green-500 flex items-center">
-                  <i className="fas fa-arrow-up mr-1"></i> 15%
+                  <i className="fas fa-arrow-up mr-1"></i> 新数据
                 </span>
-                <span className="text-text-muted ml-2">相比上学期</span>
+                <span className="text-text-muted ml-2">来自数据库</span>
               </div>
             </div>
             
@@ -352,7 +377,9 @@ const StudentInfoPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-muted text-sm">平均成绩</p>
-                  <h4 className="text-3xl font-bold text-text-primary mt-1">88.5</h4>
+                  <h4 className="text-3xl font-bold text-text-primary mt-1">
+                    {loading ? '...' : (stats?.studentStats?.averageScore?.toFixed(2) || '0.00')}
+                  </h4>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
                   <i className="fas fa-star text-orange-500 text-xl"></i>
@@ -360,9 +387,9 @@ const StudentInfoPage: React.FC = () => {
               </div>
               <div className="mt-3 flex items-center text-sm">
                 <span className="text-green-500 flex items-center">
-                  <i className="fas fa-arrow-up mr-1"></i> 3.2%
+                  <i className="fas fa-arrow-up mr-1"></i> 实时更新
                 </span>
-                <span className="text-text-muted ml-2">相比上学期</span>
+                <span className="text-text-muted ml-2">基于评分</span>
               </div>
             </div>
             
@@ -370,7 +397,9 @@ const StudentInfoPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-text-muted text-sm">项目完成率</p>
-                  <h4 className="text-3xl font-bold text-text-primary mt-1">92%</h4>
+                  <h4 className="text-3xl font-bold text-text-primary mt-1">
+                    {loading ? '...' : (stats?.studentStats?.completionRate?.toFixed(2) || '0.00')}%
+                  </h4>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
                   <i className="fas fa-check-circle text-orange-500 text-xl"></i>
@@ -378,84 +407,128 @@ const StudentInfoPage: React.FC = () => {
               </div>
               <div className="mt-3 flex items-center text-sm">
                 <span className="text-green-500 flex items-center">
-                  <i className="fas fa-arrow-up mr-1"></i> 5%
+                  <i className="fas fa-arrow-up mr-1"></i> 准确统计
                 </span>
-                <span className="text-text-muted ml-2">相比上学期</span>
+                <span className="text-text-muted ml-2">基于审批状态</span>
               </div>
             </div>
           </div>
           
-          {/* 图表区域 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* 发布量统计图 */}
-            <div className="bg-white rounded-xl shadow-card p-5 border border-border-light">
-              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+          {/* 发布量统计图 - 上方区域 */}
+          <div className="bg-white rounded-xl shadow-card p-5 border border-border-light mb-8">
+            <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
               <i className="fas fa-pie-chart text-orange-500 mr-2"></i>
-              项目发布类型统计
-              </h4>
-              <div className="h-80">
-                <canvas ref={publicationChartRef}></canvas>
+              发布量统计图（按发布类型统计）
+            </h4>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <div className="h-80">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full text-text-muted">
+                      <div className="text-center">
+                        <i className="fas fa-spinner fa-spin text-4xl mb-2"></i>
+                        <p>加载图表数据中...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <canvas ref={publicationChartRef}></canvas>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            {/* AI分析区域 */}
-            <div className="bg-white rounded-xl shadow-card p-5 border border-border-light">
-              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-              <i className="fas fa-robot text-orange-500 mr-2"></i>
-              个人优势分析
-              </h4>
               <div className="space-y-4">
-                <div className="flex items-start">
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
-                    <i className="fas fa-lightbulb text-orange-500"></i>
-                  </div>
-                  <div className="ml-3">
-                    <h5 className="font-medium text-text-primary">技术能力突出</h5>
-                    <p className="text-text-secondary text-sm mt-1">根据数据分析，您在软件开发和项目实施方面表现出色，尤其在前端开发领域有显著优势。</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
-                    <i className="fas fa-users text-orange-500"></i>
-                  </div>
-                  <div className="ml-3">
-                    <h5 className="font-medium text-text-primary">团队协作能力强</h5>
-                    <p className="text-text-secondary text-sm mt-1">您参与的团队项目普遍获得较高评价，显示出良好的沟通协调和团队合作能力。</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
-                    <i className="fas fa-tasks text-orange-500"></i>
-                  </div>
-                  <div className="ml-3">
-                    <h5 className="font-medium text-text-primary">项目管理能力优秀</h5>
-                    <p className="text-text-secondary text-sm mt-1">您负责的项目通常能按时或提前完成，且质量较高，展现出良好的项目规划和执行能力。</p>
-                  </div>
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-border-light">
-                  <button 
-                    onClick={handleGenerateReportClick}
-                    className="w-full py-2 bg-orange-500 text-white rounded-lg hover:bg-opacity-90 transition-colors flex items-center justify-center"
-                  >
-                    <i className="fas fa-file-alt mr-2"></i>
-                    生成详细分析报告
-                  </button>
+                <h5 className="font-semibold text-text-primary">类型分布详情</h5>
+                <div className="space-y-2">
+                  {loading ? (
+                    <div className="text-center text-text-muted p-4">加载中...</div>
+                  ) : (
+                    stats?.publicationByType.labels.map((label, index) => {
+                      const colors = [
+                        { bg: 'bg-orange-50', text: 'text-orange-600' },
+                        { bg: 'bg-blue-50', text: 'text-blue-600' },
+                        { bg: 'bg-green-50', text: 'text-green-600' },
+                        { bg: 'bg-purple-50', text: 'text-purple-600' },
+                        { bg: 'bg-gray-50', text: 'text-gray-600' }
+                      ];
+                      const colorClass = colors[index % colors.length];
+                      return (
+                        <div key={label} className={`flex justify-between items-center p-3 ${colorClass.bg} rounded-lg`}>
+                          <span className="text-sm font-medium">{label}</span>
+                          <span className={`text-sm font-bold ${colorClass.text}`}>
+                            {stats.publicationByType.data[index]}个项目
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
           </div>
           
-          {/* 成绩折线图 */}
-          <div className="bg-white rounded-xl shadow-card p-5 border border-border-light">
+          {/* 成绩折线图 - 下方区域 */}
+          <div className="bg-white rounded-xl shadow-card p-5 border border-border-light mb-8">
             <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
               <i className="fas fa-chart-line text-orange-500 mr-2"></i>
-              项目成绩趋势
+              成绩折线图（每次发布成果的打分）
             </h4>
-            <div className="h-80">
-              <canvas ref={scoreChartRef}></canvas>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <div className="lg:col-span-3">
+                <div className="h-80">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full text-text-muted">
+                      <div className="text-center">
+                        <i className="fas fa-spinner fa-spin text-4xl mb-2"></i>
+                        <p>加载图表数据中...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <canvas ref={scoreChartRef}></canvas>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h5 className="font-semibold text-text-primary">成绩统计</h5>
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <div className="text-sm text-text-muted">最高分</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {loading ? '...' : (
+                        stats?.scoreTrend.scores.length > 0 
+                          ? Math.max(...stats.scoreTrend.scores) 
+                          : 0
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <div className="text-sm text-text-muted">平均分</div>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {loading ? '...' : (
+                        stats?.studentStats?.averageScore?.toFixed(2) || '0.00'
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="text-sm text-text-muted">最低分</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {loading ? '...' : (
+                        stats?.scoreTrend.scores.length > 0 
+                          ? Math.min(...stats.scoreTrend.scores) 
+                          : 0
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <div className="text-sm text-text-muted">及格率</div>
+                    <div className="text-2xl font-bold text-purple-600">
+                      {loading ? '...' : (
+                        stats?.scoreTrend.scores.length > 0 
+                          ? ((stats.scoreTrend.scores.filter(score => score >= 60).length / stats.scoreTrend.scores.length) * 100).toFixed(0) + '%'
+                          : '0%'
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
