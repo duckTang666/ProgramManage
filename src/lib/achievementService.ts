@@ -826,6 +826,61 @@ export class AchievementService {
     }
   }
 
+  // 删除成果
+  static async deleteAchievement(id: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const { error } = await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+          ? (error as { message: string }).message 
+          : String(error);
+        throw new Error(errorMessage);
+      }
+
+      return { success: true, message: '删除成功' };
+    } catch (error) {
+      console.error('Error deleting achievement:', error);
+      return { success: false, message: error instanceof Error ? error.message : '删除成果失败' };
+    }
+  }
+
+  // 获取所有成果（不受角色限制）
+  static async getAllAchievements(): Promise<{ success: boolean; data?: Achievement[]; message?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('achievements')
+        .select(`
+          *,
+          achievement_types!achievements_type_id_fkey (name),
+          users!achievements_publisher_id_fkey (username, email),
+          instructor:users!achievements_instructor_id_fkey (username, email)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+          ? (error as { message: string }).message 
+          : String(error);
+        throw new Error(errorMessage);
+      }
+
+      // 转换状态数字为字符串
+      const processedData = data?.map(achievement => ({
+        ...achievement,
+        status: this.convertStatusFromNumber(achievement.status as AchievementStatusCode)
+      }));
+
+      return { success: true, data: processedData };
+    } catch (error) {
+      console.error('Error fetching all achievements:', error);
+      return { success: false, message: error instanceof Error ? error.message : '获取所有成果失败' };
+    }
+  }
+
   // 获取成果详情（带用户信息）
   static async getAchievementWithUsersById(id: string): Promise<{ success: boolean; data?: AchievementWithUsers; message?: string }> {
     try {
