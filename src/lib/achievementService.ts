@@ -50,7 +50,7 @@ export class AchievementService {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, email, role, created_at')
+        .select('id, username, email, full_name, role, created_at')
         .eq('role', role)
         .order('username');
 
@@ -68,13 +68,36 @@ export class AchievementService {
     }
   }
 
-  // 获取所有学生（role=2，除了当前用户）
+  // 获取所有用户（排除role=3的用户），包含full_name字段
+  static async getUsersForCollaborators(): Promise<{ success: boolean; data?: User[]; message?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, email, full_name, role, created_at')
+        .neq('role', 3) // 排除role=3的用户
+        .order('full_name');
+
+      if (error) {
+        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+          ? (error as { message: string }).message 
+          : String(error);
+        throw new Error(errorMessage);
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error fetching users for collaborators:', error);
+      return { success: false, message: error instanceof Error ? error.message : '获取协作用户列表失败' };
+    }
+  }
+
+  // 获取所有学生（role=1，除了当前用户）
   static async getStudentsExceptCurrent(currentUserId: string): Promise<{ success: boolean; data?: User[]; message?: string }> {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, email, role, created_at')
-        .eq('role', 2)
+        .select('id, username, email, full_name, role, created_at')
+        .eq('role', 1) // role=1 是学生角色
         .neq('id', currentUserId)
         .order('username');
 
@@ -129,8 +152,8 @@ export class AchievementService {
           .select(`
             *,
             achievement_types!achievements_type_id_fkey (name),
-            users!achievements_publisher_id_fkey (username, email),
-            instructor:users!achievements_instructor_id_fkey (username, email)
+            users!achievements_publisher_id_fkey (username, email, full_name),
+            instructor:users!achievements_instructor_id_fkey (username, email, full_name)
           `)
           .in('publisher_id', studentIds);
       } else {
@@ -648,17 +671,20 @@ export class AchievementService {
             id,
             username,
             email,
+            full_name,
             class_id
           ),
           instructor:users!achievements_instructor_id_fkey (
             id,
             username,
-            email
+            email,
+            full_name
           ),
           parent:users!achievements_parents_id_fkey (
             id,
             username,
-            email
+            email,
+            full_name
           ),
           achievement_type:achievement_types!achievements_type_id_fkey (
             id,

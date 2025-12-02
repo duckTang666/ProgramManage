@@ -64,7 +64,7 @@ const UserSelectModal: React.FC<UserSelectModalProps> = ({
                 className="w-4 h-4 text-secondary focus:ring-secondary border-border-light rounded"
               />
               <label htmlFor={user.id} className="ml-2 text-text-primary flex-1">
-                {user.username} ({user.email})
+                {user.full_name || user.username} ({user.email})
               </label>
             </div>
           ))}
