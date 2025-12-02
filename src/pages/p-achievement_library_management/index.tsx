@@ -307,16 +307,6 @@ const AchievementLibraryManagement: React.FC = () => {
                 </li>
                 <li>
                   <Link 
-                    to="/system-settings" 
-                    className={`${styles.sidebarItem} flex items-center px-4 py-3 text-text-secondary hover:text-[#2E7D32] rounded-r-lg ${activeNavItem === 'settings' ? styles.sidebarItemActive : ''}`}
-                    onClick={() => handleNavItemClick('settings')}
-                  >
-                    <i className="fas fa-cog w-5 text-center mr-3"></i>
-                    <span>系统设置</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link 
                     to="/login" 
                     className={`${styles.sidebarItem} flex items-center px-4 py-3 text-text-secondary hover:text-[#2E7D32] rounded-r-lg ${activeNavItem === 'logout' ? styles.sidebarItemActive : ''}`}
                     onClick={(e) => {
@@ -360,7 +350,7 @@ const AchievementLibraryManagement: React.FC = () => {
                   id="class-select" 
                   value={searchConditions.class}
                   onChange={(e) => setSearchConditions({...searchConditions, class: e.target.value})}
-                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
                 >
                   <option value="">全部班级</option>
                   <option value="class1">软件工程1班</option>
@@ -377,7 +367,7 @@ const AchievementLibraryManagement: React.FC = () => {
                   id="type-select" 
                   value={searchConditions.type}
                   onChange={(e) => setSearchConditions({...searchConditions, type: e.target.value})}
-                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
                 >
                   <option value="">全部类型</option>
                   {achievementTypes.map(type => (
@@ -395,7 +385,7 @@ const AchievementLibraryManagement: React.FC = () => {
                   id="score-select" 
                   value={searchConditions.score}
                   onChange={(e) => setSearchConditions({...searchConditions, score: e.target.value})}
-                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
                 >
                   <option value="">全部分数</option>
                   <option value="90+">90分以上</option>
