@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AchievementService } from '../../lib/achievementService';
-import { AchievementType } from '../../types/achievement';
+import { AchievementType, User } from '../../types/achievement';
 import styles from './styles.module.css';
 
 interface Collaborator {
@@ -44,9 +44,10 @@ const ProjectIntroPage: React.FC = () => {
     return () => { document.title = originalTitle; };
   }, []);
   
-  // 加载成果类型
+  // 加载成果类型和教师列表
   useEffect(() => {
     loadAchievementTypes();
+    loadInstructors();
   }, []);
   
   const loadAchievementTypes = async () => {
@@ -57,6 +58,21 @@ const ProjectIntroPage: React.FC = () => {
       }
     } catch (error) {
       console.error('加载成果类型失败:', error);
+    }
+  };
+
+  const loadInstructors = async () => {
+    try {
+      const result = await AchievementService.getUsersByRole(2); // 2 是教师角色
+      if (result.success && result.data) {
+        setInstructors(result.data);
+        // 默认选择第一个教师
+        if (result.data.length > 0) {
+          setSelectedInstructorId(result.data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('加载教师列表失败:', error);
     }
   };
 
@@ -93,6 +109,8 @@ const ProjectIntroPage: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [instructors, setInstructors] = useState<User[]>([]);
+  const [selectedInstructorId, setSelectedInstructorId] = useState('');
 
   // Refs
   const richTextEditorRef = useRef<HTMLDivElement>(null);
@@ -213,6 +231,11 @@ const ProjectIntroPage: React.FC = () => {
       return;
     }
 
+    if (!selectedInstructorId) {
+      alert('请选择指导老师');
+      return;
+    }
+
     if (!user?.id) {
       alert('用户未登录，请先登录');
       return;
@@ -287,7 +310,7 @@ const ProjectIntroPage: React.FC = () => {
         cover_url: coverUrl,
         video_url: videoUrl,
         publisher_id: user.id,
-        instructor_id: user.id // 学生发布时，默认自己为指导老师
+        instructor_id: selectedInstructorId || user.id // 使用选中的指导老师，如果没有选中则使用学生自己
       };
 
       // 保存草稿
@@ -315,6 +338,11 @@ const ProjectIntroPage: React.FC = () => {
 
     if (!projectType) {
       alert('请选择项目类型');
+      return;
+    }
+
+    if (!selectedInstructorId) {
+      alert('请选择指导老师');
       return;
     }
 
@@ -390,7 +418,7 @@ const ProjectIntroPage: React.FC = () => {
         cover_url: coverUrl,
         video_url: videoUrl,
         publisher_id: user.id,
-        instructor_id: user.id, // 学生发布时，默认自己为指导老师
+        instructor_id: selectedInstructorId || user.id, // 使用选中的指导老师，如果没有选中则使用学生自己
         status: 'pending' as const
       };
 
@@ -677,6 +705,23 @@ const ProjectIntroPage: React.FC = () => {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {renderCollaboratorTags()}
                 </div>
+              </div>
+
+              {/* 第三行：指导老师 */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-text-secondary mb-2">指导老师</label>
+                <select 
+                  value={selectedInstructorId}
+                  onChange={(e) => setSelectedInstructorId(e.target.value)}
+                  className={`w-full px-4 py-3 border border-border-light rounded-lg ${styles.searchInputFocus}`}
+                >
+                  <option value="">请选择指导老师</option>
+                  {instructors.map(instructor => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.username} ({instructor.email})
+                    </option>
+                  ))}
+                </select>
               </div>
               
               {/* 第三行：富文本编辑窗口 */}
