@@ -50,7 +50,7 @@ export class AchievementService {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, email, role, created_at')
+        .select('id, username, email, full_name, role, created_at')
         .eq('role', role)
         .order('username');
 
@@ -91,13 +91,13 @@ export class AchievementService {
     }
   }
 
-  // 获取所有学生（role=2，除了当前用户）
+  // 获取所有学生（role=1，除了当前用户）
   static async getStudentsExceptCurrent(currentUserId: string): Promise<{ success: boolean; data?: User[]; message?: string }> {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, email, role, created_at')
-        .eq('role', 2)
+        .select('id, username, email, full_name, role, created_at')
+        .eq('role', 1) // role=1 是学生角色
         .neq('id', currentUserId)
         .order('username');
 
@@ -671,17 +671,20 @@ export class AchievementService {
             id,
             username,
             email,
+            full_name,
             class_id
           ),
           instructor:users!achievements_instructor_id_fkey (
             id,
             username,
-            email
+            email,
+            full_name
           ),
           parent:users!achievements_parents_id_fkey (
             id,
             username,
-            email
+            email,
+            full_name
           ),
           achievement_type:achievement_types!achievements_type_id_fkey (
             id,

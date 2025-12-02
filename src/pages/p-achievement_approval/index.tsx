@@ -674,13 +674,13 @@ const AchievementApprovalPage: React.FC = () => {
                                 <i className="fas fa-user text-white text-xs"></i>
                               </div>
                               <div>
-                                <div>{achievement.publisher?.username}</div>
+                                <div>{achievement.publisher?.full_name || achievement.publisher?.username}</div>
                                 <div className="text-xs text-text-muted">{achievement.publisher?.email}</div>
                               </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm text-text-primary">
-                            {achievement.instructor?.username || '未指定'}
+                            {achievement.instructor?.full_name || achievement.instructor?.username || '未指定'}
                           </td>
                           <td className="py-3 px-4 text-sm text-text-primary">
                             <span className={getStatusStyle(achievement.status)}>
@@ -815,13 +815,13 @@ const AchievementApprovalPage: React.FC = () => {
                       <div>
                         <p className="text-sm text-text-muted mb-1">发布学生</p>
                         <p className="text-text-primary">
-                          {currentAchievement.publisher?.username} ({currentAchievement.publisher?.email})
+                          {currentAchievement.publisher?.full_name || currentAchievement.publisher?.username} ({currentAchievement.publisher?.email})
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-text-muted mb-1">指导老师</p>
                         <p className="text-text-primary">
-                          {currentAchievement.instructor?.username || '未指定'}
+                          {currentAchievement.instructor?.full_name || currentAchievement.instructor?.username || '未指定'}
                         </p>
                       </div>
                       <div>

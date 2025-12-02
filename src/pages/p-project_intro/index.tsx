@@ -739,7 +739,7 @@ const ProjectIntroPage: React.FC = () => {
                   <option value="">请选择指导老师</option>
                   {instructors.map(instructor => (
                     <option key={instructor.id} value={instructor.id}>
-                      {instructor.username} ({instructor.email})
+                      {instructor.full_name || instructor.username} ({instructor.email})
                     </option>
                   ))}
                 </select>
