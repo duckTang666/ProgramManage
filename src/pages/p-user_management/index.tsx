@@ -810,7 +810,7 @@ const UserManagement: React.FC = () => {
               </div>
               <div className="flex gap-3">
                 <select 
-                  className={`px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600/30 focus:border-green-600 ${styles.customSelect}`}
+                  className={`w-48 px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600/30 focus:border-green-600 ${styles.customSelect}`}
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
                 >
@@ -820,7 +820,7 @@ const UserManagement: React.FC = () => {
                   <option value="1">学生</option>
                 </select>
                 <select 
-                  className={`px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600/30 focus:border-green-600 ${styles.customSelect}`}
+                  className={`w-48 px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600/30 focus:border-green-600 ${styles.customSelect}`}
                   value={classFilter}
                   onChange={(e) => setClassFilter(e.target.value)}
                 >
