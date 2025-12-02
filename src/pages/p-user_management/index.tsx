@@ -3,26 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './styles.module.css';
-
-interface TreeNode {
-  id: string;
-  name: string;
-  icon: string;
-  iconColor: string;
-  children?: TreeNode[];
-  isOpen?: boolean;
-  leader?: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  role: 'admin' | 'teacher' | 'student';
-  className: string;
-  email: string;
-  status: 'active' | 'inactive';
-  isLeader?: boolean;
-}
+import { 
+  buildOrganizationTree, 
+  getUsers, 
+  getClasses, 
+  getUnassignedStudents,
+  addStudentsToClass,
+  switchStudentClass,
+  switchTeacherClass,
+  getAllClassesForSwitch,
+  getAllClassesForSwitchFallback,
+  OrgTreeNode, 
+  User,
+  getRoleName,
+  getRoleStyleClass,
+  getUserIconClass
+} from '../../services/supabaseUserService';
 
 const UserManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -30,152 +26,47 @@ const UserManagement: React.FC = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5); // 每页显示5个
   const [currentPage, setCurrentPage] = useState(1);
 
   // 组织架构数据
-  const [organizationTree, setOrganizationTree] = useState<TreeNode[]>([
-    {
-      id: 'root',
-      name: '软件学院',
-      icon: 'fas fa-university',
-      iconColor: 'text-secondary',
-      isOpen: false,
-      children: [
-        {
-          id: 'admin',
-          name: '管理员',
-          icon: 'fas fa-user-shield',
-          iconColor: 'text-red-500',
-          isOpen: false,
-          children: [
-            {
-              id: 'admin-1',
-              name: '系统管理员',
-              icon: 'fas fa-user',
-              iconColor: 'text-red-400'
-            }
-          ]
-        },
-        {
-          id: 'teachers',
-          name: '教师',
-          icon: 'fas fa-chalkboard-teacher',
-          iconColor: 'text-blue-500',
-          isOpen: false,
-          children: [
-            {
-              id: 'teacher-1',
-              name: '张教授',
-              icon: 'fas fa-user',
-              iconColor: 'text-blue-400'
-            },
-            {
-              id: 'teacher-2',
-              name: '李讲师',
-              icon: 'fas fa-user',
-              iconColor: 'text-blue-400'
-            }
-          ]
-        },
-        {
-          id: 'class-1',
-          name: '软件工程1班',
-          icon: 'fas fa-graduation-cap',
-          iconColor: 'text-green-500',
-          isOpen: false,
-          leader: '张教授',
-          children: [
-            {
-              id: 'student-1',
-              name: '王同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            },
-            {
-              id: 'student-2',
-              name: '陈同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            }
-          ]
-        },
-        {
-          id: 'class-2',
-          name: '软件工程2班',
-          icon: 'fas fa-graduation-cap',
-          iconColor: 'text-green-500',
-          isOpen: false,
-          leader: '李讲师',
-          children: [
-            {
-              id: 'student-3',
-              name: '赵同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            },
-            {
-              id: 'student-4',
-              name: '刘同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            }
-          ]
-        }
-      ]
-    }
-  ]);
+  const [organizationTree, setOrganizationTree] = useState<OrgTreeNode[]>([]);
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 用户列表数据
-  const [usersList] = useState<User[]>([
-    {
-      id: '1',
-      name: '系统管理员',
-      role: 'admin',
-      className: '-',
-      email: 'admin@example.com',
-      status: 'active'
-    },
-    {
-      id: '2',
-      name: '张教授',
-      role: 'teacher',
-      className: '软件工程1班',
-      email: 'zhang@example.com',
-      status: 'active',
-      isLeader: true
-    },
-    {
-      id: '3',
-      name: '李讲师',
-      role: 'teacher',
-      className: '软件工程2班',
-      email: 'li@example.com',
-      status: 'active',
-      isLeader: true
-    },
-    {
-      id: '4',
-      name: '王同学',
-      role: 'student',
-      className: '软件工程1班',
-      email: 'wang@example.com',
-      status: 'active'
-    },
-    {
-      id: '5',
-      name: '陈同学',
-      role: 'student',
-      className: '软件工程1班',
-      email: 'chen@example.com',
-      status: 'inactive'
+  // 获取数据
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [orgTree, users, classData] = await Promise.all([
+        buildOrganizationTree(),
+        getUsers(),
+        getClasses()
+      ]);
+      
+      setOrganizationTree(orgTree);
+      setUsersList(users);
+      setClasses(classData);
+    } catch (err) {
+      console.error('获取数据失败:', err);
+      setError('获取数据失败，请检查数据库连接');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  // 设置页面标题
+  // 设置页面标题和初始化加载数据
   useEffect(() => {
     const originalTitle = document.title;
     document.title = '软院项目通 - 用户管理';
+    
+    // 获取数据
+    fetchData();
+    
     return () => { document.title = originalTitle; };
   }, []);
 
@@ -185,7 +76,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 树节点展开/收起
-  const handleTreeNodeToggle = (nodeId: string, nodes: TreeNode[] = organizationTree): TreeNode[] => {
+  const handleTreeNodeToggle = (nodeId: string, nodes: OrgTreeNode[] = organizationTree): OrgTreeNode[] => {
     return nodes.map(node => {
       if (node.id === nodeId) {
         return { ...node, isOpen: !node.isOpen };
@@ -199,7 +90,7 @@ const UserManagement: React.FC = () => {
 
   // 展开全部
   const handleExpandAll = () => {
-    const expandAllNodes = (nodes: TreeNode[]): TreeNode[] => {
+    const expandAllNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
       return nodes.map(node => ({
         ...node,
         isOpen: true,
@@ -211,7 +102,7 @@ const UserManagement: React.FC = () => {
 
   // 收起全部
   const handleCollapseAll = () => {
-    const collapseAllNodes = (nodes: TreeNode[]): TreeNode[] => {
+    const collapseAllNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
       return nodes.map(node => ({
         ...node,
         isOpen: false,
@@ -222,7 +113,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 渲染树节点
-  const renderTreeNode = (node: TreeNode, level = 0) => {
+  const renderTreeNode = (node: OrgTreeNode, level = 0) => {
     const hasChildren = node.children && node.children.length > 0;
     
     return (
@@ -239,12 +130,41 @@ const UserManagement: React.FC = () => {
           )}
           {!hasChildren && <div className="w-6"></div>}
           <i className={`${node.icon} ${node.iconColor} mr-2`}></i>
-          <span className="font-medium">{node.name}</span>
-          {node.leader && (
-            <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
-              Leader: {node.leader}
-            </span>
+          <span 
+            className={`font-medium flex-1 ${(node.type === 'student' || node.type === 'teacher') ? 'cursor-pointer hover:text-green-600' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if ((node.type === 'student' || node.type === 'teacher') && node.userId) {
+                // 找到对应的用户数据
+                const user = usersList.find(u => u.id === node.userId);
+                if (user) {
+                  if (node.type === 'student') {
+                    handleOpenSwitchClassModal(user);
+                  } else if (node.type === 'teacher') {
+                    handleOpenSwitchTeacherClassModal(user);
+                  }
+                }
+              }
+            }}
+            title={(node.type === 'student' || node.type === 'teacher') ? '点击切换班级' : ''}
+          >
+            {node.name}
+          </span>
+          
+          {/* 为班级节点添加添加按钮 */}
+          {node.type === 'class' && (
+            <button 
+              className="ml-2 w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenAddStudentModal(node.classId || '');
+              }}
+              title="添加学生到班级"
+            >
+              <i className="fas fa-plus text-xs"></i>
+            </button>
           )}
+
         </div>
         {hasChildren && node.isOpen && (
           <div className={`${styles.treeChildren} ml-6 mt-2 space-y-2`}>
@@ -255,33 +175,52 @@ const UserManagement: React.FC = () => {
     );
   };
 
-  // 获取角色样式
-  const getRoleStyle = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full';
-      case 'teacher':
-        return 'px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full';
-      case 'student':
-        return 'px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full';
-      default:
-        return 'px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full';
-    }
+  // 获取班级名称
+  const getClassName = (classId: string): string => {
+    const cls = classes.find(c => c.id === classId);
+    return cls ? cls.name : '-';
   };
 
-  // 获取用户图标
-  const getUserIcon = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'fas fa-user-shield text-red-500 bg-red-100';
-      case 'teacher':
-        return 'fas fa-chalkboard-teacher text-blue-500 bg-blue-100';
-      case 'student':
-        return 'fas fa-user-graduate text-green-500 bg-green-100';
-      default:
-        return 'fas fa-user text-gray-500 bg-gray-100';
-    }
+  // 获取用户状态（示例：基于创建时间判断是否活跃）
+  const getUserStatus = (user: User): 'active' | 'inactive' => {
+    // 这里可以根据实际业务逻辑判断用户状态
+    // 目前简单返回活跃状态
+    return 'active';
   };
+
+  // 对用户列表进行排序：管理员(3) → 教师(2) → 学生(1)
+  const sortedUsersList = [...usersList].sort((a, b) => {
+    // 按role降序排列（3 > 2 > 1）
+    return b.role - a.role;
+  });
+
+  // 分页计算变量
+  const totalItems = sortedUsersList.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedUsers = sortedUsersList.slice(startIndex, endIndex);
+
+  // 添加学生相关状态
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [availableStudents, setAvailableStudents] = useState<User[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
+  // 学生班级切换相关状态
+  const [showSwitchClassModal, setShowSwitchClassModal] = useState(false);
+  const [selectedStudentForSwitch, setSelectedStudentForSwitch] = useState<User | null>(null);
+  const [allClassesForSwitch, setAllClassesForSwitch] = useState<any[]>([]);
+  const [selectedNewClassId, setSelectedNewClassId] = useState<string>('');
+  const [loadingClassesForSwitch, setLoadingClassesForSwitch] = useState(false);
+
+  // 教师班级切换相关状态
+  const [showSwitchTeacherModal, setShowSwitchTeacherModal] = useState(false);
+  const [selectedTeacherForSwitch, setSelectedTeacherForSwitch] = useState<User | null>(null);
+  const [allClassesForTeacher, setAllClassesForTeacher] = useState<any[]>([]);
+  const [selectedTeacherNewClassId, setSelectedTeacherNewClassId] = useState<string>('');
+  const [loadingClassesForTeacher, setLoadingClassesForTeacher] = useState(false);
 
   // 退出登录
   const handleLogout = (e: React.MouseEvent) => {
@@ -313,6 +252,190 @@ const UserManagement: React.FC = () => {
 
   const handleNotificationClick = () => {
     console.log('打开通知面板');
+  };
+
+  // 打开添加学生弹窗
+  const handleOpenAddStudentModal = async (classId: string) => {
+    setSelectedClassId(classId);
+    setSelectedStudentIds([]);
+    setShowAddStudentModal(true);
+    
+    try {
+      setLoadingStudents(true);
+      const students = await getUnassignedStudents();
+      setAvailableStudents(students);
+    } catch (error) {
+      console.error('获取未分配学生失败:', error);
+      alert('获取未分配学生失败，请稍后重试');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  // 关闭添加学生弹窗
+  const handleCloseAddStudentModal = () => {
+    setShowAddStudentModal(false);
+    setSelectedClassId('');
+    setSelectedStudentIds([]);
+    setAvailableStudents([]);
+  };
+
+  // 处理学生选择
+  const handleStudentSelection = (studentId: string) => {
+    setSelectedStudentIds(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  // 添加选中的学生到班级
+  const handleAddStudentsToClass = async () => {
+    if (selectedStudentIds.length === 0) {
+      alert('请选择要添加的学生');
+      return;
+    }
+
+    try {
+      const success = await addStudentsToClass(selectedStudentIds, selectedClassId);
+      if (success) {
+        alert(`成功添加 ${selectedStudentIds.length} 名学生到班级`);
+        handleCloseAddStudentModal();
+        // 刷新数据
+        fetchData();
+      }
+    } catch (error) {
+      console.error('添加学生失败:', error);
+      alert('添加学生失败，请稍后重试');
+    }
+  };
+
+  // 打开班级切换弹窗
+  const handleOpenSwitchClassModal = async (student: User) => {
+    setSelectedStudentForSwitch(student);
+    setSelectedNewClassId(student.class_id || '');
+    setShowSwitchClassModal(true);
+    
+    try {
+      setLoadingClassesForSwitch(true);
+      let classes;
+      
+      // 先尝试主要方法
+      try {
+        classes = await getAllClassesForSwitch();
+      } catch (mainError) {
+        console.warn('主要方法失败，使用备选方案:', mainError);
+        // 如果主要方法失败，使用备选方案
+        classes = await getAllClassesForSwitchFallback();
+      }
+      
+      setAllClassesForSwitch(classes);
+    } catch (error) {
+      console.error('获取班级列表失败:', error);
+      alert('获取班级列表失败，请稍后重试');
+    } finally {
+      setLoadingClassesForSwitch(false);
+    }
+  };
+
+  // 关闭班级切换弹窗
+  const handleCloseSwitchClassModal = () => {
+    setShowSwitchClassModal(false);
+    setSelectedStudentForSwitch(null);
+    setSelectedNewClassId('');
+    setAllClassesForSwitch([]);
+  };
+
+  // 切换学生班级
+  const handleSwitchStudentClass = async () => {
+    if (!selectedStudentForSwitch || !selectedNewClassId) {
+      alert('请选择新的班级');
+      return;
+    }
+
+    if (selectedNewClassId === selectedStudentForSwitch.class_id) {
+      alert('新班级不能与当前班级相同');
+      return;
+    }
+
+    try {
+      const success = await switchStudentClass(selectedStudentForSwitch.id, selectedNewClassId);
+      if (success) {
+        const newClass = allClassesForSwitch.find(c => c.id === selectedNewClassId);
+        const studentName = selectedStudentForSwitch.full_name || selectedStudentForSwitch.username;
+        alert(`成功将 ${studentName} 切换到 ${newClass?.name}`);
+        handleCloseSwitchClassModal();
+        // 刷新数据
+        fetchData();
+      }
+    } catch (error) {
+      console.error('切换班级失败:', error);
+      alert('切换班级失败，请稍后重试');
+    }
+  };
+
+  // 打开教师班级切换弹窗
+  const handleOpenSwitchTeacherClassModal = async (teacher: User) => {
+    setSelectedTeacherForSwitch(teacher);
+    setSelectedTeacherNewClassId(teacher.class_id || '');
+    setShowSwitchTeacherModal(true);
+    
+    try {
+      setLoadingClassesForTeacher(true);
+      let classes;
+      
+      // 先尝试主要方法
+      try {
+        classes = await getAllClassesForSwitch();
+      } catch (mainError) {
+        console.warn('主要方法失败，使用备选方案:', mainError);
+        // 如果主要方法失败，使用备选方案
+        classes = await getAllClassesForSwitchFallback();
+      }
+      
+      setAllClassesForTeacher(classes);
+    } catch (error) {
+      console.error('获取班级列表失败:', error);
+      alert('获取班级列表失败，请稍后重试');
+    } finally {
+      setLoadingClassesForTeacher(false);
+    }
+  };
+
+  // 关闭教师班级切换弹窗
+  const handleCloseSwitchTeacherModal = () => {
+    setShowSwitchTeacherModal(false);
+    setSelectedTeacherForSwitch(null);
+    setSelectedTeacherNewClassId('');
+    setAllClassesForTeacher([]);
+  };
+
+  // 切换教师班级
+  const handleSwitchTeacherClass = async () => {
+    if (!selectedTeacherForSwitch || !selectedTeacherNewClassId) {
+      alert('请选择新的班级');
+      return;
+    }
+
+    if (selectedTeacherNewClassId === selectedTeacherForSwitch.class_id) {
+      alert('新班级不能与当前班级相同');
+      return;
+    }
+
+    try {
+      const success = await switchTeacherClass(selectedTeacherForSwitch.id, selectedTeacherNewClassId);
+      if (success) {
+        const newClass = allClassesForTeacher.find(c => c.id === selectedTeacherNewClassId);
+        const teacherName = selectedTeacherForSwitch.full_name || selectedTeacherForSwitch.username;
+        alert(`成功将 ${teacherName} 切换到 ${newClass?.name}`);
+        handleCloseSwitchTeacherModal();
+        // 刷新数据
+        fetchData();
+      }
+    } catch (error) {
+      console.error('切换教师班级失败:', error);
+      alert('切换班级失败，请稍后重试');
+    }
   };
 
   return (
@@ -558,7 +681,30 @@ const UserManagement: React.FC = () => {
               </div>
               
               <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                {organizationTree.map(node => renderTreeNode(node))}
+                {loading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <i className="fas fa-spinner fa-spin text-green-600 mr-2"></i>
+                    <span className="text-text-muted">加载组织架构中...</span>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8">
+                    <i className="fas fa-exclamation-triangle text-red-500 mb-2"></i>
+                    <p className="text-red-600">{error}</p>
+                    <button 
+                      className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                      onClick={fetchData}
+                    >
+                      重新加载
+                    </button>
+                  </div>
+                ) : organizationTree.length === 0 ? (
+                  <div className="text-center py-8">
+                    <i className="fas fa-users text-gray-400 mb-2"></i>
+                    <p className="text-text-muted">暂无组织架构数据</p>
+                  </div>
+                ) : (
+                  organizationTree.map(node => renderTreeNode(node))
+                )}
               </div>
             </div>
             
@@ -566,18 +712,8 @@ const UserManagement: React.FC = () => {
             <div className={`lg:col-span-2 bg-bg-light rounded-xl shadow-card p-5 ${styles.fadeIn}`} style={{animationDelay: '0.4s'}}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-text-primary">用户列表</h3>
-                <div className="flex items-center">
-                  <span className="text-sm text-text-muted mr-2">显示</span>
-                  <select 
-                    className="px-2 py-1 text-sm border border-border-light rounded focus:outline-none focus:ring-1 focus:ring-green-600 focus:border-green-600"
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                  >
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                  </select>
-                  <span className="text-sm text-text-muted ml-2">条/页</span>
+                <div className="text-sm text-text-muted">
+                  每页显示 {pageSize} 条
                 </div>
               </div>
               
@@ -585,51 +721,51 @@ const UserManagement: React.FC = () => {
                 <table className={`${styles.userTable} w-full min-w-[600px]`}>
                   <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">姓名</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">角色</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">班级</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">邮箱</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">状态</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-text-primary">操作</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">姓名</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">角色</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">班级</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">邮箱</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">状态</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-text-primary">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {usersList.map(user => (
+                    {paginatedUsers.map(user => (
                       <tr key={user.id} className="border-t border-border-light">
                         <td className="px-4 py-3">
-                          <div className="flex items-center">
-                            <div className={`w-8 h-8 ${getUserIcon(user.role)} rounded-full flex items-center justify-center mr-3`}>
-                              <i className={getUserIcon(user.role).split(' ')[0]}></i>
+                          <div className="flex flex-col items-center">
+                            <div className={`w-8 h-8 ${getUserIconClass(user.role).split(' ').slice(0, 3).join(' ')} rounded-full flex items-center justify-center mb-1`}>
+                              <i className={getUserIconClass(user.role).split(' ')[0]}></i>
                             </div>
-                            <span>{user.name}</span>
+                            <span className="text-center text-sm font-medium">{user.full_name || user.username}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={getRoleStyle(user.role)}>
-                            {user.role === 'admin' ? '管理员' : user.role === 'teacher' ? '教师' : '学生'}
+                        <td className="px-4 py-3 text-center">
+                          <span className={getRoleStyleClass(user.role)}>
+                            {getRoleName(user.role)}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          {user.className === '-' ? '-' : `${user.className}${user.isLeader ? ' (Leader)' : ''}`}
+                        <td className="px-4 py-3 text-center">
+                          {getClassName(user.class_id || '')}
                         </td>
-                        <td className="px-4 py-3">{user.email}</td>
-                        <td className="px-4 py-3">
-                          <span className={`flex items-center ${user.status === 'active' ? 'text-green-600' : 'text-yellow-600'}`}>
+                        <td className="px-4 py-3 text-center">{user.email}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`flex items-center justify-center ${getUserStatus(user) === 'active' ? 'text-green-600' : 'text-yellow-600'}`}>
                             <i className="fas fa-circle text-xs mr-1"></i>
-                            {user.status === 'active' ? '活跃' : '未激活'}
+                            {getUserStatus(user) === 'active' ? '活跃' : '未激活'}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex space-x-2">
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex justify-center space-x-2">
                             <button className="text-green-600 hover:text-green-700" title="编辑">
                               <i className="fas fa-edit"></i>
                             </button>
-                            {(user.role === 'teacher' && user.isLeader) && (
+                            {user.role === 2 && (
                               <button className="text-green-600 hover:text-green-700" title="管理班级">
                                 <i className="fas fa-users-cog"></i>
                               </button>
                             )}
-                            {user.role === 'student' && (
+                            {user.role === 1 && (
                               <button className="text-green-600 hover:text-green-700" title="调整班级">
                                 <i className="fas fa-exchange-alt"></i>
                               </button>
@@ -651,19 +787,33 @@ const UserManagement: React.FC = () => {
               {/* 分页 */}
               <div className="flex items-center justify-between mt-4">
                 <div className="text-sm text-text-muted">
-                  显示 1 至 5 条，共 24 条
+                  显示 {startIndex + 1} 至 {Math.min(endIndex, totalItems)} 条，共 {totalItems} 条
                 </div>
                 <div className="flex items-center space-x-1">
                   <button 
                     className="w-8 h-8 flex items-center justify-center rounded border border-border-light text-text-muted hover:border-green-600 hover:text-green-600 disabled:opacity-50 disabled:cursor-not-allowed" 
-                    disabled
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
                   >
                     <i className="fas fa-chevron-left text-xs"></i>
                   </button>
-                  <button className="w-8 h-8 flex items-center justify-center rounded border border-green-600 bg-green-600 text-white">1</button>
-                  <button className="w-8 h-8 flex items-center justify-center rounded border border-border-light text-text-primary hover:border-green-600 hover:text-green-600">2</button>
-                  <button className="w-8 h-8 flex items-center justify-center rounded border border-border-light text-text-primary hover:border-green-600 hover:text-green-600">3</button>
-                  <button className="w-8 h-8 flex items-center justify-center rounded border border-border-light text-text-muted hover:border-green-600 hover:text-green-600">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                    <button 
+                      key={pageNum}
+                      className={`w-8 h-8 flex items-center justify-center rounded border ${
+                        currentPage === pageNum 
+                          ? 'border-green-600 bg-green-600 text-white' 
+                          : 'border-border-light text-text-primary hover:border-green-600 hover:text-green-600'
+                      }`}
+                      onClick={() => setCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                  <button className="w-8 h-8 flex items-center justify-center rounded border border-border-light text-text-muted hover:border-green-600 hover:text-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
                     <i className="fas fa-chevron-right text-xs"></i>
                   </button>
                 </div>
@@ -672,6 +822,232 @@ const UserManagement: React.FC = () => {
           </div>
         </main>
       </div>
+      
+      {/* 添加学生弹窗 */}
+      {showAddStudentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">添加学生到班级</h3>
+              <button 
+                onClick={handleCloseAddStudentModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {loadingStudents ? (
+                <div className="flex justify-center items-center py-8">
+                  <i className="fas fa-spinner fa-spin text-green-600 mr-2"></i>
+                  <span>加载中...</span>
+                </div>
+              ) : availableStudents.length === 0 ? (
+                <div className="text-center py-8">
+                  <i className="fas fa-user-graduate text-gray-400 mb-2"></i>
+                  <p className="text-gray-500">暂无可添加的学生</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  <div className="flex items-center mb-4">
+                    <input 
+                      type="checkbox"
+                      id="selectAll"
+                      checked={selectedStudentIds.length === availableStudents.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedStudentIds(availableStudents.map(s => s.id));
+                        } else {
+                          setSelectedStudentIds([]);
+                        }
+                      }}
+                      className="mr-2"
+                    />
+                    <label htmlFor="selectAll" className="text-sm font-medium">
+                      全选 ({selectedStudentIds.length}/{availableStudents.length})
+                    </label>
+                  </div>
+                  
+                  {availableStudents.map(student => (
+                    <div key={student.id} className="flex items-center p-2 border rounded hover:bg-gray-50">
+                      <input 
+                        type="checkbox"
+                        checked={selectedStudentIds.includes(student.id)}
+                        onChange={() => handleStudentSelection(student.id)}
+                        className="mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{student.full_name || student.username}</div>
+                        <div className="text-sm text-gray-500">{student.email}</div>
+                      </div>
+                      <div className="text-green-600">
+                        <i className="fas fa-user-graduate"></i>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-4 pt-4 border-t">
+              <button 
+                onClick={handleCloseAddStudentModal}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleAddStudentsToClass}
+                disabled={selectedStudentIds.length === 0}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                添加选中的学生 ({selectedStudentIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 班级切换弹窗 */}
+      {showSwitchClassModal && selectedStudentForSwitch && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">切换学生班级</h3>
+              <button 
+                onClick={handleCloseSwitchClassModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <div className="bg-gray-50 p-3 rounded mb-4">
+                <div className="font-medium text-gray-900">
+                  {selectedStudentForSwitch.full_name || selectedStudentForSwitch.username}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {selectedStudentForSwitch.email}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择新的班级
+                </label>
+                {loadingClassesForSwitch ? (
+                  <div className="flex justify-center items-center py-4">
+                    <i className="fas fa-spinner fa-spin text-green-600 mr-2"></i>
+                    <span>加载班级列表中...</span>
+                  </div>
+                ) : (
+                  <select 
+                    value={selectedNewClassId}
+                    onChange={(e) => setSelectedNewClassId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">请选择班级</option>
+                    <option value="">无班级</option>
+                    {allClassesForSwitch.map(cls => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.grades?.name} - {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={handleCloseSwitchClassModal}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleSwitchStudentClass}
+                disabled={!selectedNewClassId}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                确认切换
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 教师班级切换弹窗 */}
+      {showSwitchTeacherModal && selectedTeacherForSwitch && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">切换教师班级</h3>
+              <button 
+                onClick={handleCloseSwitchTeacherModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <div className="bg-blue-50 p-3 rounded mb-4">
+                <div className="font-medium text-gray-900">
+                  {selectedTeacherForSwitch.full_name || selectedTeacherForSwitch.username}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {selectedTeacherForSwitch.email}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择新的班级
+                </label>
+                {loadingClassesForTeacher ? (
+                  <div className="flex justify-center items-center py-4">
+                    <i className="fas fa-spinner fa-spin text-green-600 mr-2"></i>
+                    <span>加载班级列表中...</span>
+                  </div>
+                ) : (
+                  <select 
+                    value={selectedTeacherNewClassId}
+                    onChange={(e) => setSelectedTeacherNewClassId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">请选择班级</option>
+                    <option value="">无班级</option>
+                    {allClassesForTeacher.map(cls => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.grades?.name} - {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={handleCloseSwitchTeacherModal}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleSwitchTeacherClass}
+                disabled={!selectedTeacherNewClassId}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                确认切换
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
