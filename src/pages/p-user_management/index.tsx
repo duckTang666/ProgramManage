@@ -3,26 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './styles.module.css';
-
-interface TreeNode {
-  id: string;
-  name: string;
-  icon: string;
-  iconColor: string;
-  children?: TreeNode[];
-  isOpen?: boolean;
-  leader?: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  role: 'admin' | 'teacher' | 'student';
-  className: string;
-  email: string;
-  status: 'active' | 'inactive';
-  isLeader?: boolean;
-}
+import { 
+  buildOrganizationTree, 
+  getUsers, 
+  getClasses, 
+  OrgTreeNode, 
+  User,
+  getRoleName,
+  getRoleStyleClass,
+  getUserIconClass
+} from '../../services/supabaseUserService';
 
 const UserManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -34,148 +24,43 @@ const UserManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   // 组织架构数据
-  const [organizationTree, setOrganizationTree] = useState<TreeNode[]>([
-    {
-      id: 'root',
-      name: '软件学院',
-      icon: 'fas fa-university',
-      iconColor: 'text-secondary',
-      isOpen: false,
-      children: [
-        {
-          id: 'admin',
-          name: '管理员',
-          icon: 'fas fa-user-shield',
-          iconColor: 'text-red-500',
-          isOpen: false,
-          children: [
-            {
-              id: 'admin-1',
-              name: '系统管理员',
-              icon: 'fas fa-user',
-              iconColor: 'text-red-400'
-            }
-          ]
-        },
-        {
-          id: 'teachers',
-          name: '教师',
-          icon: 'fas fa-chalkboard-teacher',
-          iconColor: 'text-blue-500',
-          isOpen: false,
-          children: [
-            {
-              id: 'teacher-1',
-              name: '张教授',
-              icon: 'fas fa-user',
-              iconColor: 'text-blue-400'
-            },
-            {
-              id: 'teacher-2',
-              name: '李讲师',
-              icon: 'fas fa-user',
-              iconColor: 'text-blue-400'
-            }
-          ]
-        },
-        {
-          id: 'class-1',
-          name: '软件工程1班',
-          icon: 'fas fa-graduation-cap',
-          iconColor: 'text-green-500',
-          isOpen: false,
-          leader: '张教授',
-          children: [
-            {
-              id: 'student-1',
-              name: '王同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            },
-            {
-              id: 'student-2',
-              name: '陈同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            }
-          ]
-        },
-        {
-          id: 'class-2',
-          name: '软件工程2班',
-          icon: 'fas fa-graduation-cap',
-          iconColor: 'text-green-500',
-          isOpen: false,
-          leader: '李讲师',
-          children: [
-            {
-              id: 'student-3',
-              name: '赵同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            },
-            {
-              id: 'student-4',
-              name: '刘同学',
-              icon: 'fas fa-user',
-              iconColor: 'text-green-400'
-            }
-          ]
-        }
-      ]
-    }
-  ]);
+  const [organizationTree, setOrganizationTree] = useState<OrgTreeNode[]>([]);
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 用户列表数据
-  const [usersList] = useState<User[]>([
-    {
-      id: '1',
-      name: '系统管理员',
-      role: 'admin',
-      className: '-',
-      email: 'admin@example.com',
-      status: 'active'
-    },
-    {
-      id: '2',
-      name: '张教授',
-      role: 'teacher',
-      className: '软件工程1班',
-      email: 'zhang@example.com',
-      status: 'active',
-      isLeader: true
-    },
-    {
-      id: '3',
-      name: '李讲师',
-      role: 'teacher',
-      className: '软件工程2班',
-      email: 'li@example.com',
-      status: 'active',
-      isLeader: true
-    },
-    {
-      id: '4',
-      name: '王同学',
-      role: 'student',
-      className: '软件工程1班',
-      email: 'wang@example.com',
-      status: 'active'
-    },
-    {
-      id: '5',
-      name: '陈同学',
-      role: 'student',
-      className: '软件工程1班',
-      email: 'chen@example.com',
-      status: 'inactive'
+  // 获取数据
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [orgTree, users, classData] = await Promise.all([
+        buildOrganizationTree(),
+        getUsers(),
+        getClasses()
+      ]);
+      
+      setOrganizationTree(orgTree);
+      setUsersList(users);
+      setClasses(classData);
+    } catch (err) {
+      console.error('获取数据失败:', err);
+      setError('获取数据失败，请检查数据库连接');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  // 设置页面标题
+  // 设置页面标题和初始化加载数据
   useEffect(() => {
     const originalTitle = document.title;
     document.title = '软院项目通 - 用户管理';
+    
+    // 获取数据
+    fetchData();
+    
     return () => { document.title = originalTitle; };
   }, []);
 
@@ -185,7 +70,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 树节点展开/收起
-  const handleTreeNodeToggle = (nodeId: string, nodes: TreeNode[] = organizationTree): TreeNode[] => {
+  const handleTreeNodeToggle = (nodeId: string, nodes: OrgTreeNode[] = organizationTree): OrgTreeNode[] => {
     return nodes.map(node => {
       if (node.id === nodeId) {
         return { ...node, isOpen: !node.isOpen };
@@ -199,7 +84,7 @@ const UserManagement: React.FC = () => {
 
   // 展开全部
   const handleExpandAll = () => {
-    const expandAllNodes = (nodes: TreeNode[]): TreeNode[] => {
+    const expandAllNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
       return nodes.map(node => ({
         ...node,
         isOpen: true,
@@ -211,7 +96,7 @@ const UserManagement: React.FC = () => {
 
   // 收起全部
   const handleCollapseAll = () => {
-    const collapseAllNodes = (nodes: TreeNode[]): TreeNode[] => {
+    const collapseAllNodes = (nodes: OrgTreeNode[]): OrgTreeNode[] => {
       return nodes.map(node => ({
         ...node,
         isOpen: false,
@@ -222,7 +107,7 @@ const UserManagement: React.FC = () => {
   };
 
   // 渲染树节点
-  const renderTreeNode = (node: TreeNode, level = 0) => {
+  const renderTreeNode = (node: OrgTreeNode, level = 0) => {
     const hasChildren = node.children && node.children.length > 0;
     
     return (
@@ -240,11 +125,7 @@ const UserManagement: React.FC = () => {
           {!hasChildren && <div className="w-6"></div>}
           <i className={`${node.icon} ${node.iconColor} mr-2`}></i>
           <span className="font-medium">{node.name}</span>
-          {node.leader && (
-            <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
-              Leader: {node.leader}
-            </span>
-          )}
+
         </div>
         {hasChildren && node.isOpen && (
           <div className={`${styles.treeChildren} ml-6 mt-2 space-y-2`}>
@@ -255,32 +136,17 @@ const UserManagement: React.FC = () => {
     );
   };
 
-  // 获取角色样式
-  const getRoleStyle = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full';
-      case 'teacher':
-        return 'px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full';
-      case 'student':
-        return 'px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full';
-      default:
-        return 'px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full';
-    }
+  // 获取班级名称
+  const getClassName = (classId: string): string => {
+    const cls = classes.find(c => c.id === classId);
+    return cls ? cls.name : '-';
   };
 
-  // 获取用户图标
-  const getUserIcon = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'fas fa-user-shield text-red-500 bg-red-100';
-      case 'teacher':
-        return 'fas fa-chalkboard-teacher text-blue-500 bg-blue-100';
-      case 'student':
-        return 'fas fa-user-graduate text-green-500 bg-green-100';
-      default:
-        return 'fas fa-user text-gray-500 bg-gray-100';
-    }
+  // 获取用户状态（示例：基于创建时间判断是否活跃）
+  const getUserStatus = (user: User): 'active' | 'inactive' => {
+    // 这里可以根据实际业务逻辑判断用户状态
+    // 目前简单返回活跃状态
+    return 'active';
   };
 
   // 退出登录
@@ -558,7 +424,30 @@ const UserManagement: React.FC = () => {
               </div>
               
               <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                {organizationTree.map(node => renderTreeNode(node))}
+                {loading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <i className="fas fa-spinner fa-spin text-green-600 mr-2"></i>
+                    <span className="text-text-muted">加载组织架构中...</span>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8">
+                    <i className="fas fa-exclamation-triangle text-red-500 mb-2"></i>
+                    <p className="text-red-600">{error}</p>
+                    <button 
+                      className="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                      onClick={fetchData}
+                    >
+                      重新加载
+                    </button>
+                  </div>
+                ) : organizationTree.length === 0 ? (
+                  <div className="text-center py-8">
+                    <i className="fas fa-users text-gray-400 mb-2"></i>
+                    <p className="text-text-muted">暂无组织架构数据</p>
+                  </div>
+                ) : (
+                  organizationTree.map(node => renderTreeNode(node))
+                )}
               </div>
             </div>
             
@@ -598,25 +487,25 @@ const UserManagement: React.FC = () => {
                       <tr key={user.id} className="border-t border-border-light">
                         <td className="px-4 py-3">
                           <div className="flex items-center">
-                            <div className={`w-8 h-8 ${getUserIcon(user.role)} rounded-full flex items-center justify-center mr-3`}>
-                              <i className={getUserIcon(user.role).split(' ')[0]}></i>
+                            <div className={`w-8 h-8 ${getUserIconClass(user.role)} rounded-full flex items-center justify-center mr-3`}>
+                              <i className={getUserIconClass(user.role).split(' ')[0]}></i>
                             </div>
-                            <span>{user.name}</span>
+                            <span>{user.full_name || user.username}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={getRoleStyle(user.role)}>
-                            {user.role === 'admin' ? '管理员' : user.role === 'teacher' ? '教师' : '学生'}
+                          <span className={getRoleStyleClass(user.role)}>
+                            {getRoleName(user.role)}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          {user.className === '-' ? '-' : `${user.className}${user.isLeader ? ' (Leader)' : ''}`}
+                          {getClassName(user.class_id || '')}
                         </td>
                         <td className="px-4 py-3">{user.email}</td>
                         <td className="px-4 py-3">
-                          <span className={`flex items-center ${user.status === 'active' ? 'text-green-600' : 'text-yellow-600'}`}>
+                          <span className={`flex items-center ${getUserStatus(user) === 'active' ? 'text-green-600' : 'text-yellow-600'}`}>
                             <i className="fas fa-circle text-xs mr-1"></i>
-                            {user.status === 'active' ? '活跃' : '未激活'}
+                            {getUserStatus(user) === 'active' ? '活跃' : '未激活'}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -624,12 +513,12 @@ const UserManagement: React.FC = () => {
                             <button className="text-green-600 hover:text-green-700" title="编辑">
                               <i className="fas fa-edit"></i>
                             </button>
-                            {(user.role === 'teacher' && user.isLeader) && (
+                            {user.role === 2 && (
                               <button className="text-green-600 hover:text-green-700" title="管理班级">
                                 <i className="fas fa-users-cog"></i>
                               </button>
                             )}
-                            {user.role === 'student' && (
+                            {user.role === 1 && (
                               <button className="text-green-600 hover:text-green-700" title="调整班级">
                                 <i className="fas fa-exchange-alt"></i>
                               </button>
