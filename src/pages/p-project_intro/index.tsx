@@ -225,19 +225,94 @@ const ProjectIntroPage: React.FC = () => {
   const photoUploadRef = useRef<HTMLInputElement>(null);
   const videoUploadRef = useRef<HTMLInputElement>(null);
   const documentUploadRef = useRef<HTMLInputElement>(null);
-
-  // 富文本编辑器命令
-  const handleEditorCommand = (command: string) => {
-    if (richTextEditorRef.current) {
-      document.execCommand(command, false, null);
-      richTextEditorRef.current.focus();
-    }
-  };
+  const imageInsertRef = useRef<HTMLInputElement>(null);
 
   // 处理富文本编辑器内容变化
-  const handleRichTextChange = () => {
-    if (richTextEditorRef.current) {
-      setProjectDescription(richTextEditorRef.current.innerHTML);
+  const handleRichTextChange = (e: React.FormEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    setProjectDescription(target.innerHTML);
+  };
+
+  // 富文本编辑器工具栏操作
+  const handleEditorCommand = (command: string, _value?: string) => {
+    switch (command) {
+      case 'bold':
+        document.execCommand('bold', false, null);
+        break;
+      case 'italic':
+        document.execCommand('italic', false, null);
+        break;
+      case 'underline':
+        document.execCommand('underline', false, null);
+        break;
+      case 'insertHeading2':
+        document.execCommand('formatBlock', false, 'h2');
+        break;
+      case 'insertParagraph':
+        document.execCommand('insertParagraph', false, null);
+        break;
+      case 'justifyLeft':
+        document.execCommand('justifyLeft', false, null);
+        break;
+      case 'justifyCenter':
+        document.execCommand('justifyCenter', false, null);
+        break;
+      case 'justifyRight':
+        document.execCommand('justifyRight', false, null);
+        break;
+      case 'insertLink':
+        const url = prompt('请输入链接地址：', 'https://');
+        if (url) {
+          document.execCommand('createLink', false, url);
+        }
+        break;
+      case 'insertImage':
+        if (imageInsertRef.current) {
+          imageInsertRef.current.click();
+        }
+        break;
+    }
+    richTextEditorRef.current?.focus();
+  };
+
+  // 处理图片选择（用于富文本编辑器中的图片插入）
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // 检查文件大小
+      if (file.size > 5 * 1024 * 1024) {
+        alert('图片大小不能超过5MB');
+        return;
+      }
+      
+      // 创建临时URL用于预览和显示
+      const tempUrl = URL.createObjectURL(file);
+      
+      // 插入图片到富文本编辑器
+      if (richTextEditorRef.current) {
+        // 直接插入图片到编辑器中，图片会在 processRichTextImages 时统一处理上传
+        document.execCommand('insertImage', false, tempUrl);
+        
+        // 添加到内容中的图片跟踪列表（用于后续上传处理）
+        const tempImageId = Date.now().toString();
+        const tempImage = {
+          id: tempImageId,
+          file: file,
+          url: tempUrl,
+          description: ''
+        };
+        
+        // 更新项目描述以反映新图片
+        const currentContent = richTextEditorRef.current.innerHTML;
+        setProjectDescription(currentContent);
+      }
+      
+      // 清空文件输入
+      if (imageInsertRef.current) {
+        imageInsertRef.current.value = '';
+      }
     }
   };
 
@@ -393,16 +468,7 @@ const ProjectIntroPage: React.FC = () => {
         }
       }
 
-      // 处理协作者信息 - 将协作者信息添加到项目描述中
       let finalDescription = processedDescription || '暂无项目描述';
-      if (collaborators.length > 0) {
-        const collaboratorsText = collaborators.map(c => c.name).join(', ');
-        finalDescription = `<p><strong>项目成员：</strong>${projectLeader}（负责人）`;
-        if (collaboratorsText) {
-          finalDescription += `、${collaboratorsText}`;
-        }
-        finalDescription += '</p>' + finalDescription;
-      }
 
       // 查找项目类型ID
       const selectedType = achievementTypes.find(type => type.name === projectType);
@@ -503,16 +569,7 @@ const ProjectIntroPage: React.FC = () => {
         }
       }
 
-      // 处理协作者信息 - 将协作者信息添加到项目描述中
       let finalDescription = processedDescription || '暂无项目描述';
-      if (collaborators.length > 0) {
-        const collaboratorsText = collaborators.map(c => c.name).join(', ');
-        finalDescription = `<p><strong>项目成员：</strong>${projectLeader}（负责人）`;
-        if (collaboratorsText) {
-          finalDescription += `、${collaboratorsText}`;
-        }
-        finalDescription += '</p>' + finalDescription;
-      }
 
       // 查找项目类型ID
       const selectedType = achievementTypes.find(type => type.name === projectType);
@@ -919,7 +976,7 @@ const ProjectIntroPage: React.FC = () => {
                     </button>
                     <div className="w-px h-6 bg-border-light mx-1"></div>
                     <button 
-                      onClick={() => photoUploadRef.current?.click()}
+                      onClick={() => handleEditorCommand('insertImage')}
                       className="p-2 text-text-secondary hover:bg-gray-200 rounded"
                     >
                       <i className="fas fa-image"></i>
@@ -933,6 +990,13 @@ const ProjectIntroPage: React.FC = () => {
                     onInput={handleRichTextChange}
                     suppressContentEditableWarning={true}
                   ></div>
+                  <input 
+                    ref={imageInsertRef}
+                    type="file" 
+                    className="hidden" 
+                    accept="image/jpeg, image/png, image/gif"
+                    onChange={handleImageSelect}
+                  />
                 </div>
               </div>
               
