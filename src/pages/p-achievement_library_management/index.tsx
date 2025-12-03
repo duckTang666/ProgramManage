@@ -3,17 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
-import { AchievementType } from '../../types/achievement';
+import { AchievementType, AchievementWithUsers, User } from '../../types/achievement';
 import styles from './styles.module.css';
 
-interface Achievement {
+interface AchievementDisplay {
   id: string;
-  name: string;
-  score: number;
-  type: string;
-  studentName: string;
-  teacherName: string;
-  submitTime: string;
+  title: string;
+  score?: number;
+  type_name?: string;
+  student_name: string;
+  instructor_name?: string;
+  created_at: string;
 }
 
 const AchievementLibraryManagement: React.FC = () => {
@@ -21,80 +21,168 @@ const AchievementLibraryManagement: React.FC = () => {
   const [activeNavItem, setActiveNavItem] = useState('achievements');
   const [currentPage, setCurrentPage] = useState(1);
   const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>([]);
+  const [achievements, setAchievements] = useState<AchievementDisplay[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
+  const [teachers, setTeachers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
   
   // 搜索条件状态
   const [searchConditions, setSearchConditions] = useState({
-    class: '',
-    type: '',
-    score: '',
-    name: '',
-    student: ''
+    type_id: '',
+    title: '',
+    student_name: '',
+    score_range: ''
   });
 
-  // 加载成果类型
+  // 添加成果弹窗状态
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAchievement, setNewAchievement] = useState({
+    title: '',
+    description: '',
+    type_id: '',
+    score: '',
+    publisher_id: '',
+    instructor_id: ''
+  });
+
+  // 加载成果类型、学生、教师和成果列表
   useEffect(() => {
-    loadAchievementTypes();
+    loadInitialData();
   }, []);
   
-  const loadAchievementTypes = async () => {
+  const loadInitialData = async () => {
+    setLoading(true);
     try {
-      const result = await AchievementService.getAchievementTypes();
-      if (result.success && result.data) {
-        setAchievementTypes(result.data);
+      // 并行加载所有数据
+      const [typesResult, studentsResult, teachersResult, achievementsResult] = await Promise.all([
+        AchievementService.getAchievementTypes(),
+        AchievementService.getUsersByRole(1), // 学生
+        AchievementService.getUsersByRole(2), // 教师
+        AchievementService.getAllAchievements() // 所有成果
+      ]);
+      
+      if (typesResult.success && typesResult.data) {
+        setAchievementTypes(typesResult.data);
+      }
+      
+      if (studentsResult.success && studentsResult.data) {
+        setStudents(studentsResult.data);
+      }
+      
+      if (teachersResult.success && teachersResult.data) {
+        setTeachers(teachersResult.data);
+      }
+      
+      if (achievementsResult.success && achievementsResult.data) {
+        const displayData = achievementsResult.data.map((achievement: any) => ({
+          id: achievement.id,
+          title: achievement.title,
+          score: achievement.score,
+          type_name: achievement.achievement_types?.name || '',
+          student_name: achievement.users?.username || '',
+          instructor_name: achievement.instructor?.username || '',
+          created_at: achievement.created_at
+        }));
+        setAchievements(displayData);
       }
     } catch (error) {
-      console.error('加载成果类型失败:', error);
+      console.error('加载数据失败:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 模拟成果数据
-  const [achievements] = useState<Achievement[]>([
-    {
-      id: '1',
-      name: '智能校园导航系统',
-      score: 95,
-      type: '项目',
-      studentName: '张三',
-      teacherName: '李教授',
-      submitTime: '2024-05-20'
-    },
-    {
-      id: '2',
-      name: '基于机器学习的代码质量评估',
-      score: 92,
-      type: '论文',
-      studentName: '李四',
-      teacherName: '王教授',
-      submitTime: '2024-05-18'
-    },
-    {
-      id: '3',
-      name: '移动应用开发大赛作品',
-      score: 88,
-      type: '竞赛',
-      studentName: '王五',
-      teacherName: '张教授',
-      submitTime: '2024-05-15'
-    },
-    {
-      id: '4',
-      name: '一种新型数据加密方法',
-      score: 90,
-      type: '专利',
-      studentName: '赵六',
-      teacherName: '刘教授',
-      submitTime: '2024-05-10'
-    },
-    {
-      id: '5',
-      name: '云计算资源调度优化',
-      score: 85,
-      type: '项目',
-      studentName: '孙七',
-      teacherName: '周教授',
-      submitTime: '2024-05-05'
+  // 重新加载成果列表
+  const loadAchievements = async () => {
+    setLoading(true);
+    try {
+      const result = await AchievementService.getAllAchievements();
+      if (result.success && result.data) {
+        const displayData = result.data.map((achievement: any) => ({
+          id: achievement.id,
+          title: achievement.title,
+          score: achievement.score,
+          type_name: achievement.achievement_types?.name || '',
+          student_name: achievement.users?.username || '',
+          instructor_name: achievement.instructor?.username || '',
+          created_at: achievement.created_at
+        }));
+        setAchievements(displayData);
+      }
+    } catch (error) {
+      console.error('加载成果列表失败:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  // 搜索处理
+  const handleSearch = async () => {
+    setLoading(true);
+    try {
+      // 获取所有成果然后在前端过滤（如果需要更复杂的查询可以修改后端接口）
+      const result = await AchievementService.getAllAchievements();
+      if (result.success && result.data) {
+        let filteredData = result.data;
+        
+        // 应用过滤条件
+        if (searchConditions.type_id) {
+          filteredData = filteredData.filter(a => a.type_id === searchConditions.type_id);
+        }
+        
+        if (searchConditions.title) {
+          filteredData = filteredData.filter(a => 
+            a.title.toLowerCase().includes(searchConditions.title.toLowerCase())
+          );
+        }
+        
+        if (searchConditions.score_range) {
+          const [min, max] = searchConditions.score_range.split('-').map(s => s.replace('+', ''));
+          filteredData = filteredData.filter(a => {
+            if (!a.score) return false;
+            if (max) {
+              return a.score >= parseInt(min) && a.score <= parseInt(max);
+            } else {
+              return a.score >= parseInt(min);
+            }
+          });
+        }
+        
+        // 需要获取用户信息进行学生姓名过滤
+        if (searchConditions.student_name) {
+          const achievementsWithUsers = await Promise.all(
+            filteredData.map(async (achievement) => {
+              const userResult = await AchievementService.getCurrentUser(achievement.publisher_id);
+              return {
+                ...achievement,
+                publisher: userResult.data
+              };
+            })
+          );
+          
+          filteredData = achievementsWithUsers.filter(a =>
+            a.publisher?.username?.toLowerCase().includes(searchConditions.student_name.toLowerCase())
+          );
+        }
+        
+        const displayData = filteredData.map((achievement: any) => ({
+          id: achievement.id,
+          title: achievement.title,
+          score: achievement.score,
+          type_name: achievement.achievement_types?.name || '',
+          student_name: achievement.users?.username || '',
+          instructor_name: achievement.instructor?.username || '',
+          created_at: achievement.created_at
+        }));
+        
+        setAchievements(displayData);
+      }
+    } catch (error) {
+      console.error('搜索失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 设置页面标题
   useEffect(() => {
@@ -123,40 +211,51 @@ const AchievementLibraryManagement: React.FC = () => {
     }
   };
 
-  // 搜索处理
-  const handleSearch = () => {
-    console.log('执行搜索:', searchConditions);
-    // 在实际应用中，这里会根据搜索条件过滤成果列表
-  };
-
   // 重置搜索条件
   const handleReset = () => {
     setSearchConditions({
-      class: '',
-      type: '',
-      score: '',
-      name: '',
-      student: ''
+      type_id: '',
+      title: '',
+      student_name: '',
+      score_range: ''
     });
+    loadAchievements(); // 重新加载所有数据
   };
 
   // 添加成果
   const handleAddAchievement = () => {
-    console.log('添加新成果');
-    // 在实际应用中，这里会打开添加成果的表单或页面
+    setShowAddModal(true);
+    setNewAchievement({
+      title: '',
+      description: '',
+      type_id: '',
+      score: '',
+      publisher_id: '',
+      instructor_id: ''
+    });
   };
 
   // 查看成果
   const handleViewAchievement = (achievementId: string) => {
-    console.log('查看成果:', achievementId);
-    // 在实际应用中，这里会打开成果详情页面或弹窗
+    // 跳转到成果详情页面
+    window.open(`/achievement-detail/${achievementId}`, '_blank');
   };
 
   // 删除成果
-  const handleDeleteAchievement = (achievementId: string) => {
+  const handleDeleteAchievement = async (achievementId: string) => {
     if (confirm('确定要删除这个成果吗？')) {
-      console.log('删除成果:', achievementId);
-      // 在实际应用中，这里会发送删除请求并更新列表
+      try {
+        const result = await AchievementService.deleteAchievement(achievementId);
+        if (result.success) {
+          alert('删除成功');
+          loadAchievements(); // 重新加载列表
+        } else {
+          alert('删除失败: ' + result.message);
+        }
+      } catch (error) {
+        console.error('删除成果失败:', error);
+        alert('删除失败');
+      }
     }
   };
 
@@ -185,6 +284,36 @@ const AchievementLibraryManagement: React.FC = () => {
       // 继续默认行为，跳转到登录页
     } else {
       e.preventDefault();
+    }
+  };
+
+  // 提交新成果
+  const handleSubmitAchievement = async () => {
+    if (!newAchievement.title || !newAchievement.type_id || !newAchievement.publisher_id || !newAchievement.instructor_id) {
+      alert('请填写所有必填字段');
+      return;
+    }
+
+    try {
+      const result = await AchievementService.createAchievement({
+        title: newAchievement.title,
+        description: newAchievement.description,
+        type_id: newAchievement.type_id,
+        publisher_id: newAchievement.publisher_id,
+        instructor_id: newAchievement.instructor_id,
+        score: newAchievement.score ? parseInt(newAchievement.score) : undefined
+      }, true); // 直接发布，无需审批
+
+      if (result.success) {
+        alert('添加成功');
+        setShowAddModal(false);
+        loadAchievements(); // 重新加载列表
+      } else {
+        alert('添加失败: ' + result.message);
+      }
+    } catch (error) {
+      console.error('添加成果失败:', error);
+      alert('添加失败');
     }
   };
 
@@ -342,36 +471,19 @@ const AchievementLibraryManagement: React.FC = () => {
           {/* 搜索栏 */}
           <div className={`bg-bg-light rounded-xl shadow-card p-5 mb-6 ${styles.fadeInDelay1}`}>
             <h3 className="text-lg font-semibold text-text-primary mb-4">搜索条件</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* 班级选择 */}
-              <div className="space-y-2">
-                <label htmlFor="class-select" className="block text-sm font-medium text-text-secondary">班级</label>
-                <select 
-                  id="class-select" 
-                  value={searchConditions.class}
-                  onChange={(e) => setSearchConditions({...searchConditions, class: e.target.value})}
-                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
-                >
-                  <option value="">全部班级</option>
-                  <option value="class1">软件工程1班</option>
-                  <option value="class2">软件工程2班</option>
-                  <option value="class3">软件工程3班</option>
-                  <option value="class4">软件工程4班</option>
-                </select>
-              </div>
-              
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 类型选择 */}
               <div className="space-y-2">
                 <label htmlFor="type-select" className="block text-sm font-medium text-text-secondary">类型</label>
                 <select 
                   id="type-select" 
-                  value={searchConditions.type}
-                  onChange={(e) => setSearchConditions({...searchConditions, type: e.target.value})}
+                  value={searchConditions.type_id}
+                  onChange={(e) => setSearchConditions({...searchConditions, type_id: e.target.value})}
                   className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
                 >
                   <option value="">全部类型</option>
                   {achievementTypes.map(type => (
-                    <option key={type.id} value={type.name}>
+                    <option key={type.id} value={type.id}>
                       {type.name}
                     </option>
                   ))}
@@ -383,8 +495,8 @@ const AchievementLibraryManagement: React.FC = () => {
                 <label htmlFor="score-select" className="block text-sm font-medium text-text-secondary">分数</label>
                 <select 
                   id="score-select" 
-                  value={searchConditions.score}
-                  onChange={(e) => setSearchConditions({...searchConditions, score: e.target.value})}
+                  value={searchConditions.score_range}
+                  onChange={(e) => setSearchConditions({...searchConditions, score_range: e.target.value})}
                   className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
                 >
                   <option value="">全部分数</option>
@@ -403,8 +515,8 @@ const AchievementLibraryManagement: React.FC = () => {
                   type="text" 
                   id="name-input" 
                   placeholder="输入成果名称" 
-                  value={searchConditions.name}
-                  onChange={(e) => setSearchConditions({...searchConditions, name: e.target.value})}
+                  value={searchConditions.title}
+                  onChange={(e) => setSearchConditions({...searchConditions, title: e.target.value})}
                   className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
                 />
               </div>
@@ -416,8 +528,8 @@ const AchievementLibraryManagement: React.FC = () => {
                   type="text" 
                   id="student-input" 
                   placeholder="输入学生姓名" 
-                  value={searchConditions.student}
-                  onChange={(e) => setSearchConditions({...searchConditions, student: e.target.value})}
+                  value={searchConditions.student_name}
+                  onChange={(e) => setSearchConditions({...searchConditions, student_name: e.target.value})}
                   className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
                 />
               </div>
@@ -470,32 +582,49 @@ const AchievementLibraryManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {achievements.map((achievement) => (
-                    <tr key={achievement.id} className={`border-t border-border-light ${styles.tableRowHover}`}>
-                      <td className="px-4 py-3 text-sm text-text-primary">{achievement.name}</td>
-                      <td className="px-4 py-3 text-sm text-text-primary">{achievement.score}</td>
-                      <td className="px-4 py-3 text-sm text-text-primary">{achievement.type}</td>
-                      <td className="px-4 py-3 text-sm text-text-primary">{achievement.studentName}</td>
-                      <td className="px-4 py-3 text-sm text-text-primary">{achievement.teacherName}</td>
-                      <td className="px-4 py-3 text-sm text-text-muted">{achievement.submitTime}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex space-x-2">
-                          <button 
-                          className="text-[#2E7D32] hover:text-[#1B5E20]"
-                          onClick={() => handleViewAchievement(achievement.id)}
-                        >
-                            <i className="fas fa-eye"></i>
-                          </button>
-                          <button 
-                            className="text-red-500 hover:text-red-700"
-                            onClick={() => handleDeleteAchievement(achievement.id)}
-                          >
-                            <i className="fas fa-trash-alt"></i>
-                          </button>
-                        </div>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-text-muted">
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        加载中...
                       </td>
                     </tr>
-                  ))}
+                  ) : achievements.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-text-muted">
+                        暂无数据
+                      </td>
+                    </tr>
+                  ) : (
+                    achievements.map((achievement) => (
+                      <tr key={achievement.id} className={`border-t border-border-light ${styles.tableRowHover}`}>
+                        <td className="px-4 py-3 text-sm text-text-primary">{achievement.title}</td>
+                        <td className="px-4 py-3 text-sm text-text-primary">{achievement.score || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-text-primary">{achievement.type_name || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-text-primary">{achievement.student_name}</td>
+                        <td className="px-4 py-3 text-sm text-text-primary">{achievement.instructor_name || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-text-muted">
+                          {new Date(achievement.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex space-x-2">
+                            <button 
+                              className="text-[#2E7D32] hover:text-[#1B5E20]"
+                              onClick={() => handleViewAchievement(achievement.id)}
+                            >
+                              <i className="fas fa-eye"></i>
+                            </button>
+                            <button 
+                              className="text-red-500 hover:text-red-700"
+                              onClick={() => handleDeleteAchievement(achievement.id)}
+                            >
+                              <i className="fas fa-trash-alt"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -550,6 +679,140 @@ const AchievementLibraryManagement: React.FC = () => {
           </div>
         </main>
       </div>
+      
+      {/* 添加成果弹窗 */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-text-primary mb-4">添加成果</h3>
+            
+            <div className="space-y-4">
+              {/* 成果名称 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-title" className="block text-sm font-medium text-text-secondary">
+                  成果名称 <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="achievement-title" 
+                  placeholder="输入成果名称" 
+                  value={newAchievement.title}
+                  onChange={(e) => setNewAchievement({...newAchievement, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                />
+              </div>
+              
+              {/* 成果描述 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-description" className="block text-sm font-medium text-text-secondary">
+                  成果描述
+                </label>
+                <textarea 
+                  id="achievement-description" 
+                  placeholder="输入成果描述" 
+                  rows={3}
+                  value={newAchievement.description}
+                  onChange={(e) => setNewAchievement({...newAchievement, description: e.target.value})}
+                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                />
+              </div>
+              
+              {/* 成果类型 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-type" className="block text-sm font-medium text-text-secondary">
+                  成果类型 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  id="achievement-type" 
+                  value={newAchievement.type_id}
+                  onChange={(e) => setNewAchievement({...newAchievement, type_id: e.target.value})}
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
+                >
+                  <option value="">请选择类型</option>
+                  {achievementTypes.map(type => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 分数 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-score" className="block text-sm font-medium text-text-secondary">
+                  分数
+                </label>
+                <input 
+                  type="number" 
+                  id="achievement-score" 
+                  placeholder="输入分数" 
+                  min="0"
+                  max="100"
+                  value={newAchievement.score}
+                  onChange={(e) => setNewAchievement({...newAchievement, score: e.target.value})}
+                  className="w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent"
+                />
+              </div>
+              
+              {/* 学生选择 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-student" className="block text-sm font-medium text-text-secondary">
+                  学生姓名 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  id="achievement-student" 
+                  value={newAchievement.publisher_id}
+                  onChange={(e) => setNewAchievement({...newAchievement, publisher_id: e.target.value})}
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
+                >
+                  <option value="">请选择学生</option>
+                  {students.map(student => (
+                    <option key={student.id} value={student.id}>
+                      {student.full_name || student.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 指导老师选择 */}
+              <div className="space-y-2">
+                <label htmlFor="achievement-teacher" className="block text-sm font-medium text-text-secondary">
+                  指导老师 <span className="text-red-500">*</span>
+                </label>
+                <select 
+                  id="achievement-teacher" 
+                  value={newAchievement.instructor_id}
+                  onChange={(e) => setNewAchievement({...newAchievement, instructor_id: e.target.value})}
+                  className={`w-full px-3 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:border-transparent ${styles.customSelect}`}
+                >
+                  <option value="">请选择指导老师</option>
+                  {teachers.map(teacher => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.full_name || teacher.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* 按钮组 */}
+            <div className="flex justify-end space-x-2 mt-6">
+              <button 
+                className="px-4 py-2 border border-border-light rounded-lg text-text-secondary hover:bg-gray-50 transition-colors"
+                onClick={() => setShowAddModal(false)}
+              >
+                取消
+              </button>
+              <button 
+                className="px-4 py-2 bg-[#2E7D32] text-white rounded-lg hover:bg-[#1B5E20] transition-colors"
+                onClick={handleSubmitAchievement}
+              >
+                添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
