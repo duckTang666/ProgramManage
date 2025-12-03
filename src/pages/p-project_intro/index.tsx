@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AchievementService } from '../../lib/achievementService';
 import { AchievementType, User } from '../../types/achievement';
@@ -36,20 +36,58 @@ interface Video {
 const ProjectIntroPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  
+  // 表单状态
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [projectName, setProjectName] = useState('');
+  const [projectLeader, setProjectLeader] = useState('');
+  const [projectType, setProjectType] = useState('');
+  const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>([]);
+  const [projectDescription, setProjectDescription] = useState('');
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [collaboratorInput, setCollaboratorInput] = useState('');
+  const [collaboratorUsers, setCollaboratorUsers] = useState<User[]>([]);
+  const [selectedCollaboratorId, setSelectedCollaboratorId] = useState('');
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [instructors, setInstructors] = useState<User[]>([]);
+  const [selectedInstructorId, setSelectedInstructorId] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingAchievementId, setEditingAchievementId] = useState<string>('');
+  
+
   
   // 页面标题设置
   useEffect(() => {
     const originalTitle = document.title;
-    document.title = '软院项目通 - 学生端成果发布';
+    document.title = isEditMode ? '软院项目通 - 编辑成果' : '软院项目通 - 学生端成果发布';
     return () => { document.title = originalTitle; };
-  }, []);
+  }, [isEditMode]);
   
   // 加载成果类型和教师列表
   useEffect(() => {
+    const editId = searchParams.get('edit');
+    
+    if (editId) {
+      setIsEditMode(true);
+      setEditingAchievementId(editId);
+      console.log('检测到编辑模式，成果ID:', editId);
+    }
+    
     loadAchievementTypes();
     loadInstructors();
     loadCollaboratorUsers();
-  }, []);
+    
+    // 如果是编辑模式，在加载完成果类型后再加载成果数据
+    if (editId) {
+      setTimeout(() => {
+        loadEditAchievement(editId);
+      }, 800); // 等待类型加载完成
+    }
+  }, [searchParams]);
   
   const loadAchievementTypes = async () => {
     try {
@@ -88,6 +126,78 @@ const ProjectIntroPage: React.FC = () => {
     }
   };
 
+  // 加载要编辑的成果数据
+  const loadEditAchievement = async (achievementId: string) => {
+    try {
+      console.log('正在加载成果数据:', achievementId);
+      const result = await AchievementService.getAchievementById(achievementId);
+      if (result.success && result.data) {
+        const achievement = result.data;
+        console.log('加载到的成果数据:', achievement);
+        
+        // 设置基本信息
+        setProjectName(achievement.title || '');
+        setProjectDescription(achievement.description || '');
+        setProjectLeader(user?.full_name || user?.username || '');
+        
+        // 设置项目类型
+        if (achievement.type_id && achievementTypes.length > 0) {
+          const type = achievementTypes.find(t => t.id === achievement.type_id);
+          if (type) {
+            setProjectType(type.name);
+          }
+        }
+        
+        // 设置指导老师
+        if (achievement.instructor_id) {
+          setSelectedInstructorId(achievement.instructor_id);
+        }
+        
+        // 设置协作者
+        if (achievement.parents_id) {
+          setSelectedCollaboratorId(achievement.parents_id);
+        }
+        
+        // 设置封面图片
+        if (achievement.cover_url) {
+          const photo: Photo = {
+            id: 'edit-cover',
+            file: new File([], 'cover.jpg'),
+            url: achievement.cover_url,
+            description: ''
+          };
+          setPhotos([photo]);
+        }
+        
+        // 设置视频
+        if (achievement.video_url) {
+          const video: Video = {
+            id: 'edit-video',
+            file: new File([], 'video.mp4'),
+            url: achievement.video_url,
+            duration: 0
+          };
+          setVideos([video]);
+        }
+        
+        // 如果富文本编辑器已渲染，设置内容
+        setTimeout(() => {
+          if (richTextEditorRef.current) {
+            richTextEditorRef.current.innerHTML = achievement.description || '';
+          }
+        }, 100);
+        
+        console.log('成果数据加载完成');
+      } else {
+        console.error('加载成果数据失败:', result.message);
+        alert('加载成果数据失败: ' + (result.message || '未知错误'));
+      }
+    } catch (error) {
+      console.error('加载成果数据失败:', error);
+      alert('加载成果数据失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    }
+  };
+
   // 响应式侧边栏处理
   useEffect(() => {
     const handleResize = () => {
@@ -108,23 +218,7 @@ const ProjectIntroPage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 表单状态
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-  const [projectName, setProjectName] = useState('');
-  const [projectLeader, setProjectLeader] = useState('');
-  const [projectType, setProjectType] = useState('');
-  const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>([]);
-  const [projectDescription, setProjectDescription] = useState('');
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [collaboratorInput, setCollaboratorInput] = useState('');
-  const [collaboratorUsers, setCollaboratorUsers] = useState<User[]>([]);
-  const [selectedCollaboratorId, setSelectedCollaboratorId] = useState('');
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [instructors, setInstructors] = useState<User[]>([]);
-  const [selectedInstructorId, setSelectedInstructorId] = useState('');
+
 
   // Refs
   const richTextEditorRef = useRef<HTMLDivElement>(null);
@@ -435,30 +529,40 @@ const ProjectIntroPage: React.FC = () => {
         video_url: videoUrl,
         publisher_id: user.id,
         instructor_id: selectedInstructorId || user.id, // 使用选中的指导老师，如果没有选中则使用学生自己
+        parents_id: selectedCollaboratorId || null, // 添加协作者ID
         status: 'pending' as const
       };
 
-      // 创建成果
-      const result = await AchievementService.createAchievement(achievementData);
+      let result;
+      if (isEditMode) {
+        // 更新成果
+        result = await AchievementService.updateAchievement(editingAchievementId, achievementData);
+      } else {
+        // 创建成果
+        result = await AchievementService.createAchievement(achievementData);
+      }
       
       if (result.success) {
-        alert('项目发布成功！');
+        alert(isEditMode ? '项目更新成功！' : '项目发布成功！');
         
-        // 重置表单
-        setProjectName('');
-        setProjectLeader('');
-        setProjectType('');
-        setProjectDescription('');
-        setCollaborators([]);
-        setPhotos([]);
-        setVideos([]);
-        setDocumentFile(null);
-        if (richTextEditorRef.current) {
-          richTextEditorRef.current.innerHTML = '';
+        if (!isEditMode) {
+          // 只在非编辑模式下重置表单
+          setProjectName('');
+          setProjectLeader('');
+          setProjectType('');
+          setProjectDescription('');
+          setCollaborators([]);
+          setSelectedCollaboratorId('');
+          setPhotos([]);
+          setVideos([]);
+          setDocumentFile(null);
+          if (richTextEditorRef.current) {
+            richTextEditorRef.current.innerHTML = '';
+          }
         }
         
-        // 可以跳转到成果列表页面
-        // navigate('/business-process');
+        // 跳转到成果列表页面
+        navigate('/business-process');
       } else {
         alert(`发布失败: ${result.message}`);
       }
@@ -626,11 +730,13 @@ const ProjectIntroPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-text-primary mb-2">学生端成果发布</h2>
+              <h2 className="text-2xl font-bold text-text-primary mb-2">
+                {isEditMode ? '编辑成果' : '学生端成果发布'}
+              </h2>
               <nav className="text-sm text-text-muted">
                 <Link to="/home" className="hover:text-orange-500">首页</Link>
                 <span className="mx-2">/</span>
-                <span className="text-text-primary">成果发布</span>
+                <span className="text-text-primary">{isEditMode ? '编辑成果' : '成果发布'}</span>
               </nav>
             </div>
           </div>
@@ -930,7 +1036,7 @@ const ProjectIntroPage: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? '发布中...' : '发布'}
+                  {isSubmitting ? (isEditMode ? '更新中...' : '发布中...') : (isEditMode ? '更新' : '发布')}
                 </button>
               </div>
             </div>

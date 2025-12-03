@@ -150,7 +150,7 @@ const BusinessProcessPage: React.FC = () => {
   const handleWithdrawAchievement = async (achievementId: string) => {
     try {
       console.log('撤回成果:', achievementId);
-      const result = await AchievementService.updateAchievement(achievementId, { status: 'draft' });
+      const result = await AchievementService.updateAchievement(achievementId, { status: 0 });
       
       if (result.success) {
         setAchievements(prev => 
