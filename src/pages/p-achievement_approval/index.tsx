@@ -288,15 +288,22 @@ const AchievementApprovalPage: React.FC = () => {
   };
   
   // 获取状态样式
-  const getStatusStyle = (status: AchievementStatus) => {
-    switch (status) {
-      case 'pending':
+  const getStatusStyle = (status: number | AchievementStatus) => {
+    // 处理数字状态
+    const statusNum = typeof status === 'number' ? status : 
+      status === 'pending' ? 1 : 
+      status === 'approved' ? 2 : 
+      status === 'rejected' ? 3 : 
+      status === 'draft' ? 0 : 0;
+    
+    switch (statusNum) {
+      case 1: // pending
         return 'px-2 py-1 text-xs bg-amber-100 text-amber-800 rounded-full';
-      case 'approved':
+      case 2: // approved
         return 'px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full';
-      case 'rejected':
+      case 3: // rejected
         return 'px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full';
-      case 'draft':
+      case 0: // draft
       default:
         return 'px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full';
     }
@@ -684,9 +691,9 @@ const AchievementApprovalPage: React.FC = () => {
                           </td>
                           <td className="py-3 px-4 text-sm text-text-primary">
                             <span className={getStatusStyle(achievement.status)}>
-                              {achievement.status === 'pending' ? '待审核' : 
-                               achievement.status === 'approved' ? '已通过' : 
-                               achievement.status === 'rejected' ? '已拒绝' : '草稿'}
+                              {achievement.status === 1 ? '待审核' : 
+                               achievement.status === 2 ? '已通过' : 
+                               achievement.status === 3 ? '已拒绝' : achievement.status === 0 ? '草稿' : '未知状态'}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm text-text-primary">
@@ -827,9 +834,9 @@ const AchievementApprovalPage: React.FC = () => {
                       <div>
                         <p className="text-sm text-text-muted mb-1">当前状态</p>
                         <span className={getStatusStyle(currentAchievement.status)}>
-                          {currentAchievement.status === 'pending' ? '待审核' : 
-                           currentAchievement.status === 'approved' ? '已通过' : 
-                           currentAchievement.status === 'rejected' ? '已拒绝' : '草稿'}
+                          {currentAchievement.status === 1 ? '待审核' : 
+                           currentAchievement.status === 2 ? '已通过' : 
+                           currentAchievement.status === 3 ? '已拒绝' : currentAchievement.status === 0 ? '草稿' : '未知状态'}
                         </span>
                       </div>
                       <div>
