@@ -1,0 +1,8 @@
+/* 管理员用户信息组件样式 */
+.adminUserInfo {
+  transition: all 0.2s ease;
+}
+
+.adminUserInfo:hover {
+  background-color: rgba(46, 125, 50, 0.1);
+}

@@ -70,11 +70,21 @@ const UserManagement: React.FC = () => {
     const originalTitle = document.title;
     document.title = '软院项目通 - 用户管理';
     
+    // 调试用户登录状态
+    console.log('用户管理页面 - 用户登录状态:', user);
+    console.log('用户详细信息:', {
+      id: user?.id,
+      username: user?.username,
+      full_name: user?.full_name,
+      email: user?.email,
+      role: user?.role
+    });
+    
     // 获取数据
     fetchData();
     
     return () => { document.title = originalTitle; };
-  }, []);
+  }, [user]);
 
   // 移动端菜单切换
   const handleMobileMenuToggle = () => {
@@ -649,7 +659,7 @@ const UserManagement: React.FC = () => {
                 <i className="fas fa-user"></i>
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium text-text-primary">{user?.full_name || '管理员'}</p>
+                <p className="text-sm font-medium text-text-primary">{user?.full_name || user?.username || '管理员'}</p>
                 <p className="text-xs text-text-muted">系统管理员</p>
               </div>
               <i className="fas fa-chevron-down text-xs text-text-muted"></i>

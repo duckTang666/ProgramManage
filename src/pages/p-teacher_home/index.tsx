@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { StatisticsService } from '../../lib/statisticsService';
 import { getCurrentUser } from '../../lib/userUtils';
+import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
 
 // 声明Chart.js的全局类型
@@ -15,6 +16,7 @@ declare global {
 
 const TeacherHomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState('dashboard');
   const [activeViewType, setActiveViewType] = useState('monthly');
@@ -418,7 +420,7 @@ const TeacherHomePage: React.FC = () => {
                     className="w-10 h-10 rounded-full object-cover border-2 border-secondary"
                   />
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium text-text-primary">张教授</p>
+                    <p className="text-sm font-medium text-text-primary">{user?.full_name || '教师'}</p>
                     <p className="text-xs text-text-muted">计算机科学与技术系</p>
                   </div>
                 </div>
@@ -430,7 +432,7 @@ const TeacherHomePage: React.FC = () => {
           <div className="p-6">
             {/* 欢迎信息 */}
             <div className={`mb-8 ${styles.fadeIn}`}>
-              <h1 className="text-2xl font-bold text-text-primary">您好，张教授</h1>
+              <h1 className="text-2xl font-bold text-text-primary">您好，{user?.full_name || '教师'}</h1>
               <p className="text-text-secondary mt-1">今天是 <span>{currentDate}</span></p>
             </div>
             
