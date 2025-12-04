@@ -9,6 +9,7 @@ import styles from './styles.module.css';
 
 const AchievementApprovalPage: React.FC = () => {
   const { user } = useAuth();
+  const [currentUser, setCurrentUser] = useState(user);
   
   // 获取当前教师ID
   const currentInstructorId = String(user?.id || localStorage.getItem('userId') || '');
@@ -38,6 +39,25 @@ const AchievementApprovalPage: React.FC = () => {
   const [studentFilter, setStudentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<AchievementStatus>('pending');
   
+  // 加载当前用户信息
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const currentUserId = String(user?.id || '');
+        if (currentUserId) {
+          const userResult = await AchievementService.getCurrentUser(currentUserId);
+          if (userResult.success && userResult.data) {
+            setCurrentUser(userResult.data);
+          }
+        }
+      } catch (error) {
+        console.error('获取当前用户信息失败:', error);
+      }
+    };
+
+    loadCurrentUser();
+  }, [user]);
+
   // 加载初始数据
   useEffect(() => {
     loadAchievementTypes();
@@ -452,7 +472,7 @@ const AchievementApprovalPage: React.FC = () => {
                     className="w-10 h-10 rounded-full object-cover border-2 border-secondary"
                   />
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium text-text-primary">张教授</p>
+                    <p className="text-sm font-medium text-text-primary">{currentUser?.full_name || user?.full_name || '教师用户'}</p>
                     <p className="text-xs text-text-muted">计算机科学与技术系</p>
                   </div>
                 </div>
