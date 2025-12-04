@@ -76,8 +76,8 @@ const AchievementLibraryManagement: React.FC = () => {
           title: achievement.title,
           score: achievement.score,
           type_name: achievement.achievement_types?.name || achievement.achievement_type?.name || '',
-          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.username || ''),
-          instructor_name: achievement.instructor?.role === 2 ? (achievement.instructor?.full_name || achievement.instructor?.username) : (achievement.instructor?.username || ''),
+          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.role === 2 ? '无' : (achievement.users?.username || '')),
+          instructor_name: achievement.instructor?.full_name || achievement.instructor?.username || '',
           created_at: achievement.created_at
         }));
         setAchievements(displayData);
@@ -109,8 +109,8 @@ const AchievementLibraryManagement: React.FC = () => {
           title: achievement.title,
           score: achievement.score,
           type_name: achievement.achievement_types?.name || achievement.achievement_type?.name || '',
-          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.username || ''),
-          instructor_name: achievement.instructor?.role === 2 ? (achievement.instructor?.full_name || achievement.instructor?.username) : (achievement.instructor?.username || ''),
+          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.role === 2 ? '无' : (achievement.users?.username || '')),
+          instructor_name: achievement.instructor?.full_name || achievement.instructor?.username || '',
           created_at: achievement.created_at
         }));
         setAchievements(displayData);
@@ -133,8 +133,8 @@ const AchievementLibraryManagement: React.FC = () => {
           title: achievement.title,
           score: achievement.score,
           type_name: achievement.achievement_types?.name || achievement.achievement_type?.name || '',
-          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.username || ''),
-          instructor_name: achievement.instructor?.role === 2 ? (achievement.instructor?.full_name || achievement.instructor?.username) : (achievement.instructor?.username || ''),
+          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.role === 2 ? '无' : (achievement.users?.username || '')),
+          instructor_name: achievement.instructor?.full_name || achievement.instructor?.username || '',
           created_at: achievement.created_at
         }));
           setAchievements(displayData);
@@ -225,8 +225,8 @@ const AchievementLibraryManagement: React.FC = () => {
           title: achievement.title,
           score: achievement.score,
           type_name: achievement.achievement_types?.name || achievement.achievement_type?.name || '',
-          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.username || ''),
-          instructor_name: achievement.instructor?.role === 2 ? (achievement.instructor?.full_name || achievement.instructor?.username) : (achievement.instructor?.username || ''),
+          student_name: achievement.users?.role === 1 ? (achievement.users?.full_name || achievement.users?.username) : (achievement.users?.role === 2 ? '无' : (achievement.users?.username || '')),
+          instructor_name: achievement.instructor?.full_name || achievement.instructor?.username || '',
           created_at: achievement.created_at
         }));
         
@@ -847,11 +847,14 @@ const AchievementLibraryManagement: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-text-secondary">学生姓名</label>
-                    <div className="text-base text-text-primary">{selectedAchievement.publisher?.full_name || selectedAchievement.publisher?.username || '-'}</div>
+                    <div className="text-base text-text-primary">
+                      {selectedAchievement.publisher?.role === 1 ? (selectedAchievement.publisher?.full_name || selectedAchievement.publisher?.username) : 
+                       selectedAchievement.publisher?.role === 2 ? '无' : (selectedAchievement.publisher?.username || '')}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-text-secondary">指导教师</label>
-                    <div className="text-base text-text-primary">{selectedAchievement.instructor?.full_name || selectedAchievement.instructor?.username || '-'}</div>
+                    <div className="text-base text-text-primary">{selectedAchievement.instructor?.full_name || selectedAchievement.instructor?.username || ''}</div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-text-secondary">状态</label>
