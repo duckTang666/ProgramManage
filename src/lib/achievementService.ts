@@ -1036,6 +1036,39 @@ export class AchievementService {
       return { success: false, message: error instanceof Error ? error.message : '获取成果附件失败' };
     }
   }
+
+  // 获取成果的最新审批记录
+  static async getLatestApprovalRecord(achievementId: string): Promise<{ success: boolean; data?: { feedback: string; reviewed_at: string; reviewer?: { username: string } }; message?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('approval_records')
+        .select(`
+          feedback,
+          reviewed_at,
+          reviewer:users!approval_records_reviewer_id_fkey (username)
+        `)
+        .eq('achievement_id', achievementId)
+        .order('reviewed_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // 没有找到审批记录
+          return { success: true, data: undefined };
+        }
+        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+          ? (error as { message: string }).message 
+          : String(error);
+        throw new Error(errorMessage);
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error fetching latest approval record:', error);
+      return { success: false, message: error instanceof Error ? error.message : '获取审批记录失败' };
+    }
+  }
 }
 
 export default AchievementService;

@@ -23,6 +23,7 @@ const BusinessProcessPage: React.FC = () => {
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [filteredAchievements, setFilteredAchievements] = useState<Achievement[]>([]);
+  const [approvalRecords, setApprovalRecords] = useState<Record<string, { feedback: string; reviewed_at: string }>>({});
 
   // 加载学生成果数据
   useEffect(() => {
@@ -51,8 +52,15 @@ const BusinessProcessPage: React.FC = () => {
           if (userResult.data.role === 1) {
             const achievementsResult = await AchievementService.getAchievementsByUser(userResult.data.role, currentUserId);
             if (achievementsResult.success) {
-              setAchievements(achievementsResult.data || []);
-              console.log('📊 学生成果加载成功:', achievementsResult.data?.length, '条');
+              const loadedAchievements = achievementsResult.data || [];
+              setAchievements(loadedAchievements);
+              console.log('📊 学生成果加载成功:', loadedAchievements.length, '条');
+              
+              // 加载被拒绝成果的审批记录
+              const rejectedAchievements = loadedAchievements.filter(a => a.status === 'rejected');
+              if (rejectedAchievements.length > 0) {
+                await loadApprovalRecords(rejectedAchievements);
+              }
             } else {
               console.error('加载学生成果失败:', achievementsResult.message);
             }
@@ -71,6 +79,28 @@ const BusinessProcessPage: React.FC = () => {
     document.title = '软院项目通 - 成果管理';
     return () => { document.title = originalTitle; };
   }, [user]);
+
+  // 加载被拒绝成果的审批记录
+  const loadApprovalRecords = async (rejectedAchievements: Achievement[]) => {
+    try {
+      const records: Record<string, { feedback: string; reviewed_at: string }> = {};
+      
+      for (const achievement of rejectedAchievements) {
+        const result = await AchievementService.getLatestApprovalRecord(achievement.id);
+        if (result.success && result.data) {
+          records[achievement.id] = {
+            feedback: result.data.feedback,
+            reviewed_at: result.data.reviewed_at
+          };
+        }
+      }
+      
+      setApprovalRecords(records);
+      console.log('📋 审批记录加载成功:', Object.keys(records).length, '条');
+    } catch (error) {
+      console.error('加载审批记录失败:', error);
+    }
+  };
 
   // 筛选成果
   useEffect(() => {
@@ -465,12 +495,25 @@ const BusinessProcessPage: React.FC = () => {
                         创建时间：{new Date(achievement.created_at || '').toLocaleString()}
                       </p>
                       
+                      {/* 已发布成果的得分 */}
+                      {achievement.status === 'approved' && achievement.score !== undefined && (
+                        <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded-r-lg mb-2">
+                          <p className="text-green-700 text-sm">
+                            <i className="fas fa-star mr-1"></i>
+                            得分：{achievement.score}分
+                          </p>
+                        </div>
+                      )}
+                      
                       {/* 驳回原因 */}
-                      {(achievement as any).rejection_reason && (
+                      {achievement.status === 'rejected' && approvalRecords[achievement.id] && (
                         <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-r-lg mb-2">
                           <p className="text-red-700 text-sm">
                             <i className="fas fa-exclamation-circle mr-1"></i>
-                            驳回原因：{(achievement as any).rejection_reason}
+                            驳回原因：{approvalRecords[achievement.id].feedback}
+                          </p>
+                          <p className="text-red-600 text-xs mt-1">
+                            审核时间：{new Date(approvalRecords[achievement.id].reviewed_at).toLocaleString()}
                           </p>
                         </div>
                       )}
