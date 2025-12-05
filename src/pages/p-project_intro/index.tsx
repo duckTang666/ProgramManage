@@ -327,33 +327,40 @@ const ProjectIntroPage: React.FC = () => {
     if (files && files.length > 0) {
       const file = files[0];
       
-      // 检查文件大小
-      if (file.size > 5 * 1024 * 1024) {
-        alert('图片大小不能超过5MB');
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('只能上传图片文件');
         return;
       }
       
-      // 创建临时URL用于预览和显示
-      const tempUrl = URL.createObjectURL(file);
-      
-      // 插入图片到富文本编辑器
-      if (richTextEditorRef.current) {
-        // 直接插入图片到编辑器中，图片会在 processRichTextImages 时统一处理上传
-        document.execCommand('insertImage', false, tempUrl);
-        
-        // 添加到内容中的图片跟踪列表（用于后续上传处理）
-        const tempImageId = Date.now().toString();
-        const tempImage = {
-          id: tempImageId,
-          file: file,
-          url: tempUrl,
-          description: ''
-        };
-        
-        // 更新项目描述以反映新图片
-        const currentContent = richTextEditorRef.current.innerHTML;
-        setProjectDescription(currentContent);
+      // 检查文件大小
+      if (file.size > 10 * 1024 * 1024) {
+        alert('图片大小不能超过10MB');
+        return;
       }
+      
+      // 使用FileReader读取文件为base64，立即插入到编辑器
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Url = event.target?.result as string;
+        
+        // 插入base64图片到富文本编辑器
+        if (richTextEditorRef.current) {
+          document.execCommand('insertImage', false, base64Url);
+          
+          // 更新项目描述
+          const currentContent = richTextEditorRef.current.innerHTML;
+          setProjectDescription(currentContent);
+          
+          console.log('已插入base64图片，将在保存时上传到achievement-images桶');
+        }
+      };
+      
+      reader.onerror = () => {
+        alert('图片读取失败，请重试');
+      };
+      
+      reader.readAsDataURL(file);
       
       // 清空文件输入
       if (imageInsertRef.current) {
@@ -382,11 +389,24 @@ const ProjectIntroPage: React.FC = () => {
     setCollaborators(collaborators.filter(c => c.id !== id));
   };
 
-  // 照片上传（只处理第一张图片）
+  // 照片上传（封面图片，只处理第一张图片）
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0]; // 只取第一个文件
+      
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('只能上传图片文件（JPG、PNG、GIF、WebP格式）');
+        return;
+      }
+      
+      // 检查文件大小
+      if (file.size > 10 * 1024 * 1024) {
+        alert('图片大小不能超过10MB');
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (event) => {
         const newPhoto: Photo = {
@@ -396,6 +416,7 @@ const ProjectIntroPage: React.FC = () => {
           description: ''
         };
         setPhotos([newPhoto]); // 替换现有照片，只保留一张
+        console.log('已选择封面图片，将在发布时上传到achievement-images桶');
       };
       reader.readAsDataURL(file);
     }
@@ -411,11 +432,25 @@ const ProjectIntroPage: React.FC = () => {
     setPhotos(photos.map(p => p.id === id ? { ...p, description } : p));
   };
 
-  // 视频上传（只处理第一个视频）
+  // 视频上传（项目演示视频，只处理第一个视频）
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0]; // 只取第一个文件
+      
+      // 检查文件类型
+      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+      if (!allowedVideoTypes.includes(file.type)) {
+        alert('只能上传视频文件（MP4、WebM、OGG、MOV格式）');
+        return;
+      }
+      
+      // 检查文件大小
+      if (file.size > 100 * 1024 * 1024) {
+        alert('视频大小不能超过100MB');
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (event) => {
         const video = document.createElement('video');
@@ -428,6 +463,7 @@ const ProjectIntroPage: React.FC = () => {
             duration: video.duration
           };
           setVideos([newVideo]); // 替换现有视频，只保留一个
+          console.log('已选择演示视频，将在发布时上传到achievement-videos桶');
         };
       };
       reader.readAsDataURL(file);

@@ -1177,6 +1177,150 @@ export class AchievementService {
       return { success: false, message: error instanceof Error ? error.message : '上传并保存附件失败' };
     }
   }
+
+  // 处理富文本中的图片，上传到achievement-images桶
+  static async processRichTextImages(htmlContent: string, userId: string): Promise<{ success: boolean; processedContent?: string; message?: string }> {
+    try {
+      // 创建一个临时的DOM元素来解析HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      
+      const images = tempDiv.querySelectorAll('img');
+      const uploadPromises: Promise<{ element: HTMLImageElement; newUrl?: string; error?: string }>[] = [];
+      
+      // 为每个图片创建上传任务
+      images.forEach((img, index) => {
+        const uploadPromise = new Promise<{ element: HTMLImageElement; newUrl?: string; error?: string }>((resolve) => {
+          const src = img.src;
+          
+          // 如果已经是achievement-images桶的URL，跳过上传
+          if (src.includes('achievement-images/') && src.includes('supabase')) {
+            resolve({ element: img, newUrl: src });
+            return;
+          }
+          
+          // 如果是base64图片，需要上传
+          if (src.startsWith('data:image/')) {
+            // 将base64转换为Blob
+            const base64Data = src.split(',')[1];
+            const mimeType = src.match(/data:image\/([^;]+)/)?.[1] || 'image/jpeg';
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            const file = new File([blob], `image_${Date.now()}_${index}.jpg`, { type: mimeType });
+            
+            // 上传到achievement-images桶
+            this.uploadFileToStorage(file, userId, `richText_${Date.now()}_${index}`)
+              .then(result => {
+                if (result.success && result.url) {
+                  resolve({ element: img, newUrl: result.url });
+                } else {
+                  resolve({ element: img, error: result.message || '上传失败' });
+                }
+              })
+              .catch(error => {
+                resolve({ element: img, error: error.message || '上传异常' });
+              });
+          } else if (src.startsWith('blob:')) {
+            // 处理blob URL（从FileReader创建的临时URL）
+            fetch(src)
+              .then(response => response.blob())
+              .then(blob => {
+                const mimeType = blob.type || 'image/jpeg';
+                const file = new File([blob], `image_${Date.now()}_${index}.jpg`, { type: mimeType });
+                
+                this.uploadFileToStorage(file, userId, `richText_${Date.now()}_${index}`)
+                  .then(result => {
+                    if (result.success && result.url) {
+                      resolve({ element: img, newUrl: result.url });
+                    } else {
+                      resolve({ element: img, error: result.message || '上传失败' });
+                    }
+                  })
+                  .catch(error => {
+                    resolve({ element: img, error: error.message || '上传异常' });
+                  });
+              })
+              .catch(error => {
+                resolve({ element: img, error: 'blob处理失败: ' + error.message });
+              });
+          } else {
+            // 其他HTTP图片，直接使用
+            resolve({ element: img, newUrl: src });
+          }
+        });
+        
+        uploadPromises.push(uploadPromise);
+      });
+      
+      // 等待所有图片上传完成
+      const results = await Promise.all(uploadPromises);
+      
+      // 统计上传结果
+      let successCount = 0;
+      let errorMessages: string[] = [];
+      
+      results.forEach(result => {
+        if (result.newUrl) {
+          result.element.src = result.newUrl;
+          successCount++;
+        } else if (result.error) {
+          errorMessages.push(result.error);
+        }
+      });
+      
+      // 返回处理后的HTML
+      const processedHtml = tempDiv.innerHTML;
+      
+      if (errorMessages.length > 0) {
+        return {
+          success: true,
+          processedContent: processedHtml,
+          message: `${successCount}张图片上传成功，${errorMessages.length}张图片上传失败：${errorMessages.join('; ')}`
+        };
+      } else {
+        return {
+          success: true,
+          processedContent: processedHtml,
+          message: `成功处理${successCount}张图片`
+        };
+      }
+      
+    } catch (error) {
+      console.error('处理富文本图片时发生错误:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '处理图片时发生未知错误'
+      };
+    }
+  }
+
+  // 上传文件到存储的辅助方法
+  private static async uploadFileToStorage(file: File, userId: string, fileNamePrefix: string): Promise<{ success: boolean; url?: string; message?: string }> {
+    try {
+      // 动态导入storage服务以避免循环依赖
+      const { uploadToAchievementImagesBucket } = await import('../services/supabaseStorageService');
+      
+      const fileName = `${fileNamePrefix}_${Date.now()}.${file.name.split('.').pop() || 'jpg'}`;
+      const filePath = `achievements/${userId}/${fileName}`;
+      
+      const result = await uploadToAchievementImagesBucket(file, fileName, filePath);
+      
+      return result;
+    } catch (error) {
+      console.error('上传文件到存储失败:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '上传失败'
+      };
+    }
+  }
 }
 
 export default AchievementService;
