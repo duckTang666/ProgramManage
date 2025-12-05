@@ -339,28 +339,19 @@ const ProjectIntroPage: React.FC = () => {
         return;
       }
       
-      // 使用FileReader读取文件为base64，立即插入到编辑器
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Url = event.target?.result as string;
+      // 创建blob URL，立即插入到编辑器
+      const blobUrl = URL.createObjectURL(file);
+      
+      // 插入blob图片到富文本编辑器
+      if (richTextEditorRef.current) {
+        document.execCommand('insertImage', false, blobUrl);
         
-        // 插入base64图片到富文本编辑器
-        if (richTextEditorRef.current) {
-          document.execCommand('insertImage', false, base64Url);
-          
-          // 更新项目描述
-          const currentContent = richTextEditorRef.current.innerHTML;
-          setProjectDescription(currentContent);
-          
-          console.log('已插入base64图片，将在保存时上传到achievement-images桶');
-        }
-      };
-      
-      reader.onerror = () => {
-        alert('图片读取失败，请重试');
-      };
-      
-      reader.readAsDataURL(file);
+        // 更新项目描述
+        const currentContent = richTextEditorRef.current.innerHTML;
+        setProjectDescription(currentContent);
+        
+        console.log('已插入blob图片:', blobUrl);
+      }
       
       // 清空文件输入
       if (imageInsertRef.current) {
@@ -513,21 +504,15 @@ const ProjectIntroPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 处理富文本中的图片
-      let processedDescription = projectDescription;
-      if (projectDescription) {
-        const imageProcessResult = await AchievementService.processRichTextImages(projectDescription, user.id);
-        if (imageProcessResult.success && imageProcessResult.processedContent) {
-          processedDescription = imageProcessResult.processedContent;
-        }
-      }
+      // 直接使用项目描述，不再处理富文本中的图片（因为使用blob URL）
+      const processedDescription = projectDescription;
 
-      // 上传封面图片到achievement-images桶
+      // 上传封面图片到achievement-images桶（使用publisher_id分类）
       let coverUrl = '';
       if (photos.length > 0) {
         const coverPhoto = photos[0];
         const fileName = `cover_${Date.now()}_${coverPhoto.id}.jpg`;
-        const filePath = `achievements/${user.id}/${fileName}`;
+        const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
         const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath);
         
         if (uploadResult.success && uploadResult.url) {
@@ -537,12 +522,12 @@ const ProjectIntroPage: React.FC = () => {
         }
       }
 
-      // 上传演示视频到achievement-videos桶
+      // 上传演示视频到achievement-videos桶（使用publisher_id分类）
       let videoUrl = '';
       if (videos.length > 0) {
         const demoVideo = videos[0];
         const fileName = `video_${Date.now()}_${demoVideo.id}.mp4`;
-        const filePath = `achievements/${user.id}/${fileName}`;
+        const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
         const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath);
         
         if (uploadResult.success && uploadResult.url) {
@@ -626,21 +611,15 @@ const ProjectIntroPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 处理富文本中的图片
-      let processedDescription = projectDescription;
-      if (projectDescription) {
-        const imageProcessResult = await AchievementService.processRichTextImages(projectDescription, user.id);
-        if (imageProcessResult.success && imageProcessResult.processedContent) {
-          processedDescription = imageProcessResult.processedContent;
-        }
-      }
+      // 直接使用项目描述，不再处理富文本中的图片（因为使用blob URL）
+      const processedDescription = projectDescription;
 
-      // 上传封面图片到achievement-images桶
+      // 上传封面图片到achievement-images桶（使用publisher_id分类）
       let coverUrl = '';
       if (photos.length > 0) {
         const coverPhoto = photos[0];
         const fileName = `cover_${Date.now()}_${coverPhoto.id}.jpg`;
-        const filePath = `achievements/${user.id}/${fileName}`;
+        const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
         const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath);
         
         if (uploadResult.success && uploadResult.url) {
@@ -650,12 +629,12 @@ const ProjectIntroPage: React.FC = () => {
         }
       }
 
-      // 上传演示视频到achievement-videos桶
+      // 上传演示视频到achievement-videos桶（使用publisher_id分类）
       let videoUrl = '';
       if (videos.length > 0) {
         const demoVideo = videos[0];
         const fileName = `video_${Date.now()}_${demoVideo.id}.mp4`;
-        const filePath = `achievements/${user.id}/${fileName}`;
+        const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
         const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath);
         
         if (uploadResult.success && uploadResult.url) {

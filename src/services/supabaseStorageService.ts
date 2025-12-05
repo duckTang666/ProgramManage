@@ -519,10 +519,10 @@ export const uploadToAchievementImagesBucket = async (file: File, fileName?: str
       return { success: false, error: '图片大小不能超过10MB' };
     }
 
-    // 确保桶存在
-    const bucketExists = await createAchievementImagesBucket();
+    // 检查桶是否存在
+    const bucketExists = await checkAchievementImagesBucket();
     if (!bucketExists) {
-      return { success: false, error: '无法创建或访问achievement-images存储桶' };
+      return { success: false, error: 'achievement-images存储桶不存在，请先创建' };
     }
 
     // 生成唯一文件名和路径
@@ -669,10 +669,10 @@ export const uploadToAchievementVideosBucket = async (file: File, fileName?: str
       return { success: false, error: '视频大小不能超过100MB' };
     }
 
-    // 确保桶存在
-    const bucketExists = await createAchievementVideosBucket();
+    // 检查桶是否存在
+    const bucketExists = await checkAchievementVideosBucket();
     if (!bucketExists) {
-      return { success: false, error: '无法创建或访问achievement-videos存储桶' };
+      return { success: false, error: 'achievement-videos存储桶不存在，请先创建' };
     }
 
     // 生成唯一文件名和路径
