@@ -957,10 +957,18 @@ const AchievementLibraryManagement: React.FC = () => {
                         </div>
                         <button 
                           className="px-3 py-1 text-[#2E7D32] hover:text-[#1B5E20] bg-green-50 hover:bg-green-100 rounded-lg text-sm flex items-center space-x-1 transition-colors"
-                          onClick={() => window.open(attachment.file_url, '_blank')}
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = attachment.file_url;
+                            link.download = attachment.file_name;
+                            link.target = '_blank';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
                         >
                           <i className="fas fa-download"></i>
-                          <span>查看</span>
+                          <span>下载</span>
                         </button>
                       </div>
                     ))}

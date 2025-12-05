@@ -240,9 +240,20 @@ export class AchievementService {
         status: this.convertStatusFromNumber(achievement.status as AchievementStatusCode)
       }));
 
-      console.log('📊 用户相关成果查询结果:', processedData?.length, '条记录');
+      // 为每个成果获取附件信息
+      const achievementsWithAttachments = await Promise.all(
+        (processedData || []).map(async (achievement) => {
+          const attachmentsResult = await this.getAchievementAttachments(achievement.id);
+          return {
+            ...achievement,
+            attachments: attachmentsResult.success ? (attachmentsResult.data || []) : []
+          };
+        })
+      );
 
-      return { success: true, data: processedData };
+      console.log('📊 用户相关成果查询结果:', achievementsWithAttachments?.length, '条记录');
+
+      return { success: true, data: achievementsWithAttachments };
     } catch (error) {
       console.error('Error fetching achievements by user:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取用户相关成果列表失败' };
@@ -302,9 +313,20 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 转换状态数字为字符串
+      // 转换状态数字为字符串并获取附件
       if (data) {
-        data.status = this.convertStatusFromNumber(data.status as AchievementStatusCode);
+        const achievement = {
+          ...data,
+          status: this.convertStatusFromNumber(data.status as AchievementStatusCode)
+        };
+
+        // 获取附件信息
+        const attachmentsResult = await this.getAchievementAttachments(id);
+        if (attachmentsResult.success) {
+          achievement.attachments = attachmentsResult.data || [];
+        }
+
+        return { success: true, data: achievement };
       }
 
       return { success: true, data };
@@ -323,7 +345,9 @@ export class AchievementService {
       console.log(`文件类型: ${file.type}`);
       
       // 验证文件大小（根据存储桶类型设置不同限制）
-      const maxSize = bucket === 'achievement-videos' ? 200 * 1024 * 1024 : 5 * 1024 * 1024; // 视频200MB，图片5MB
+      const maxSize = bucket === 'achievement-videos' ? 200 * 1024 * 1024 : 
+                     bucket === 'achievement-images' ? 5 * 1024 * 1024 :  // 图片5MB
+                     bucket === 'achievement_attachments' ? 50 * 1024 * 1024 : 5 * 1024 * 1024; // 文档50MB
       if (file.size > maxSize) {
         const maxSizeMB = maxSize / (1024 * 1024);
         return { 
@@ -335,6 +359,7 @@ export class AchievementService {
       // 验证文件类型
       const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
+      const allowedDocumentTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
       
       if (bucket === 'achievement-images' && !allowedImageTypes.includes(file.type)) {
         return { 
@@ -347,6 +372,13 @@ export class AchievementService {
         return { 
           success: false, 
           message: `❌ 文件类型不支持！\\n\\n当前文件类型: ${file.type}\\n支持的视频格式: MP4, MOV, AVI, WebM` 
+        };
+      }
+      
+      if (bucket === 'achievement_attachments' && !allowedDocumentTypes.includes(file.type)) {
+        return { 
+          success: false, 
+          message: `❌ 文件类型不支持！\\n\\n当前文件类型: ${file.type}\\n支持的文档格式: PDF, DOC, DOCX` 
         };
       }
 
@@ -369,9 +401,13 @@ export class AchievementService {
         } else if (error.message.includes('row-level security') || error.message.includes('permission') || error.message.includes('PGRST301')) {
           errorMessage = `❌ 权限不足！\n\n🔧 解决方案：\n1. 打开 Supabase 控制台的 SQL 编辑器\n2. 运行 fix-storage-policies.sql 文件\n3. 确保存储桶设置为公开访问\n\n💡 这将更新存储桶的访问权限策略。`;
         } else if (error.message.includes('file too large') || error.message.includes('size')) {
-          errorMessage = `❌ 文件过大！\n\n当前大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\n限制大小: ${bucket === 'achievement-videos' ? '200MB' : '5MB'}\n\n💡 请压缩文件或选择更小的文件。`;
+          const sizeLimit = bucket === 'achievement-videos' ? '200MB' : 
+                          bucket === 'achievement_attachments' ? '50MB' : '5MB';
+          errorMessage = `❌ 文件过大！\n\n当前大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\n限制大小: ${sizeLimit}\n\n💡 请压缩文件或选择更小的文件。`;
         } else if (error.message.includes('invalid format') || error.message.includes('mime')) {
-          errorMessage = `❌ 文件格式不支持！\n\n当前格式: ${file.type}\n${bucket === 'achievement-images' ? '支持格式: JPG, PNG, GIF, WebP' : '支持格式: MP4, MOV, AVI, WebM'}\n\n💡 请转换文件格式后重试。`;
+          errorMessage = `❌ 文件格式不支持！\n\n当前格式: ${file.type}\n${bucket === 'achievement-images' ? '支持格式: JPG, PNG, GIF, WebP' : bucket === 'achievement_attachments' ? '支持格式: PDF, DOC, DOCX' : '支持格式: MP4, MOV, AVI, WebM'}\n\n💡 请转换文件格式后重试。`;
+        } else if (error.message.includes('Invalid key') || error.message.includes('key')) {
+          errorMessage = `❌ 文件名包含无效字符！\n\n问题: 文件路径中包含空格或特殊字符\n解决方案: 系统已自动修复文件名，请重新尝试上传\n\n💡 建议使用英文文件名避免此问题。`;
         }
         
         return { 
@@ -1020,7 +1056,7 @@ export class AchievementService {
       const { data, error } = await supabase
         .from('achievement_attachments')
         .select('*')
-        .eq('achievements_id', achievementId)
+        .eq('achievement_id', achievementId)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -1067,6 +1103,78 @@ export class AchievementService {
     } catch (error) {
       console.error('Error fetching latest approval record:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取审批记录失败' };
+    }
+  }
+
+  // 添加成果附件
+  static async addAchievementAttachment(
+    achievementId: string, 
+    fileName: string, 
+    fileUrl: string, 
+    fileSize: number,
+    fileType: string
+  ): Promise<{ success: boolean; data?: AchievementAttachment; message?: string }> {
+    try {
+      const attachmentData = {
+        achievement_id: achievementId,
+        file_name: fileName,
+        file_url: fileUrl,
+        file_size: fileSize,
+        created_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('achievement_attachments')
+        .insert([attachmentData])
+        .select()
+        .single();
+
+      if (error) {
+        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+          ? (error as { message: string }).message 
+          : String(error);
+        throw new Error(errorMessage);
+      }
+
+      return { success: true, data: data as AchievementAttachment };
+    } catch (error) {
+      console.error('Error adding achievement attachment:', error);
+      return { success: false, message: error instanceof Error ? error.message : '添加成果附件失败' };
+    }
+  }
+
+  // 上传并保存附件
+  static async uploadAndSaveAttachment(
+    achievementId: string, 
+    file: File
+  ): Promise<{ success: boolean; data?: AchievementAttachment; message?: string }> {
+    try {
+      // 上传文件到存储
+      // 使用UUID和原始文件扩展名生成安全的文件名
+      const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
+      const uuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const fileName = `attachment_${uuid}${fileExtension}`;
+      const filePath = `achievements/${achievementId}/${fileName}`;
+      
+      const uploadResult = await this.uploadFile(file, 'achievement_attachments', filePath);
+      
+      if (!uploadResult.success || !uploadResult.url) {
+        return { success: false, message: uploadResult.message || '文件上传失败' };
+      }
+
+      // 保存附件信息到数据库
+      const saveResult = await this.addAchievementAttachment(
+        achievementId, 
+        file.name, 
+        uploadResult.url, 
+        file.size,
+        file.type
+      );
+
+      return saveResult;
+    } catch (error) {
+      console.error('Error uploading and saving attachment:', error);
+      return { success: false, message: error instanceof Error ? error.message : '上传并保存附件失败' };
     }
   }
 }

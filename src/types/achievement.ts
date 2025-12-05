@@ -61,6 +61,7 @@ export interface Achievement {
   parents_id?: string;
   created_at: string;
   updated_at?: string;
+  attachments?: AchievementAttachment[];
 }
 
 // 创建成果的请求数据
@@ -94,10 +95,10 @@ export interface User {
 // 成果附件
 export interface AchievementAttachment {
   id: string;
-  achievements_id: string;
+  achievement_id: string;
   file_name: string;
   file_url: string;
-  file_type: string;
+  file_size: number;
   created_at: string;
 }
 

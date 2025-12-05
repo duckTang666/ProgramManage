@@ -189,6 +189,30 @@ const AchievementEditPage: React.FC = () => {
           return;
         }
         
+        // 获取附件信息
+        const attachmentsResult = await AchievementService.getAchievementAttachments(id);
+        let processedAttachments: FileUpload[] = [];
+        
+        if (attachmentsResult.success && attachmentsResult.data && attachmentsResult.data.length > 0) {
+          console.log('📎 加载现有附件，数量:', attachmentsResult.data.length);
+          // 从现有附件创建FileUpload对象（用于显示）
+          processedAttachments = attachmentsResult.data.map(attachment => {
+            // 尝试从URL创建File对象（用于显示），如果失败则创建空文件
+            try {
+              return {
+                file: new File([], attachment.file_name, { type: 'application/pdf' }),
+                id: attachment.id
+              };
+            } catch (error) {
+              console.error('创建文件对象失败:', error);
+              return {
+                file: new File([], attachment.file_name),
+                id: attachment.id
+              };
+            }
+          });
+        }
+        
         // 填充表单数据
         const selectedType = typesResult.data?.find(t => t.id === ach.type_id);
         const selectedInstructor = instructorsResult.data?.find(u => u.id === ach.instructor_id);
@@ -203,7 +227,7 @@ const AchievementEditPage: React.FC = () => {
           content: ach.description || '',
           demoVideo: null,
           demoVideoUrl: ach.video_url || '',
-          attachments: [],
+          attachments: processedAttachments,
           typeId: ach.type_id,
           instructorId: ach.instructor_id || '',
           parentsId: ach.parents_id || ''
@@ -356,6 +380,27 @@ const AchievementEditPage: React.FC = () => {
     }
   };
   
+  // 查看附件
+  const handleViewAttachment = (attachment: FileUpload) => {
+    // 对于新附件（有实际文件内容）
+    if (attachment.file.size > 0) {
+      const url = URL.createObjectURL(attachment.file);
+      window.open(url, '_blank');
+    } else {
+      // 对于现有附件（从数据库加载的），需要从achievement中获取URL
+      if (achievement && achievement.attachments) {
+        const dbAttachment = achievement.attachments.find(att => att.id === attachment.id);
+        if (dbAttachment && dbAttachment.file_url) {
+          window.open(dbAttachment.file_url, '_blank');
+        } else {
+          alert('找不到附件文件');
+        }
+      } else {
+        alert('找不到附件文件');
+      }
+    }
+  };
+  
   // 移除附件
   const handleRemoveAttachment = (id: string) => {
     setFormData(prev => ({
@@ -444,6 +489,39 @@ const AchievementEditPage: React.FC = () => {
       };
       
       const result = await AchievementService.updateAchievement(id, updateData);
+      
+      // 上传新附件（如果有）
+      if (result.success && formData.attachments.length > 0) {
+        console.log('📎 开始上传新附件，数量:', formData.attachments.length);
+        let uploadSuccessCount = 0;
+        let uploadErrorMessages = [];
+        
+        // 只上传新的附件（通过文件大小判断是否为新附件）
+        const newAttachments = formData.attachments.filter(attachment => attachment.file.size > 0);
+        console.log('📎 真正需要上传的新附件数量:', newAttachments.length);
+        
+        for (const attachment of newAttachments) {
+          console.log('📎 上传新附件:', attachment.file.name);
+          const attachmentResult = await AchievementService.uploadAndSaveAttachment(id, attachment.file);
+          
+          if (attachmentResult.success) {
+            console.log('✅ 新附件上传成功:', attachment.file.name);
+            uploadSuccessCount++;
+          } else {
+            console.error('❌ 新附件上传失败:', attachment.file.name, attachmentResult.message);
+            uploadErrorMessages.push(`${attachment.file.name}: ${attachmentResult.message}`);
+          }
+        }
+        
+        if (uploadSuccessCount > 0) {
+          console.log(`📎 新附件上传完成，成功: ${uploadSuccessCount}/${newAttachments.length}`);
+        }
+        
+        if (uploadErrorMessages.length > 0) {
+          const errorMessage = `有 ${uploadErrorMessages.length} 个新附件上传失败:\n\n${uploadErrorMessages.join('\n\n')}\n\n成果已修改，但部分新附件未上传成功`;
+          alert(errorMessage);
+        }
+      }
       
       if (result.success) {
         alert('成果修改成功！');
@@ -907,13 +985,17 @@ const AchievementEditPage: React.FC = () => {
                     {formData.attachments.map((attachment) => (
                       <div 
                         key={attachment.id}
-                        className={`${styles.fileItem} h-24 rounded-lg flex flex-col items-center justify-center p-2 relative`}
+                        className={`${styles.fileItem} h-24 rounded-lg flex flex-col items-center justify-center p-2 relative cursor-pointer`}
+                        onClick={() => handleViewAttachment(attachment)}
                       >
                         <i className={`fas ${getFileIcon(attachment.file)} text-xl mb-1`}></i>
                         <p className="text-xs text-text-primary text-center truncate w-full">{attachment.file.name}</p>
                         <p className="text-xs text-text-muted">{formatFileSize(attachment.file.size)}</p>
                         <button 
-                          onClick={() => handleRemoveAttachment(attachment.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveAttachment(attachment.id);
+                          }}
                           className="absolute top-2 right-2 text-text-muted hover:text-red-500"
                         >
                           <i className="fas fa-times"></i>

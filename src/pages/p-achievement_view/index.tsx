@@ -188,13 +188,29 @@ const AchievementViewPage: React.FC = () => {
   const handleViewDetail = async (achievementId: string) => {
     setCurrentAchievementId(achievementId);
     
-    // 获取详细的成果信息
-    const result = await AchievementService.getAchievementWithUsersById(achievementId);
-    if (result.success && result.data) {
-      setCurrentAchievement(result.data);
-      setShowDetailModal(true);
-    } else {
-      alert('获取成果详情失败：' + (result.message || '未知错误'));
+    try {
+      // 获取详细的成果信息
+      const result = await AchievementService.getAchievementWithUsersById(achievementId);
+      if (result.success && result.data) {
+        const achievementData = result.data;
+        
+        // 获取附件信息
+        const attachmentsResult = await AchievementService.getAchievementAttachments(achievementId);
+        if (attachmentsResult.success) {
+          achievementData.attachments = attachmentsResult.data || [];
+        } else {
+          console.warn('获取附件信息失败:', attachmentsResult.message);
+          achievementData.attachments = [];
+        }
+        
+        setCurrentAchievement(achievementData);
+        setShowDetailModal(true);
+      } else {
+        alert('获取成果详情失败：' + (result.message || '未知错误'));
+      }
+    } catch (error) {
+      console.error('获取成果详情失败:', error);
+      alert('获取成果详情失败：' + (error instanceof Error ? error.message : '未知错误'));
     }
   };
 
@@ -681,6 +697,41 @@ const AchievementViewPage: React.FC = () => {
                       >
                         您的浏览器不支持视频播放
                       </video>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 需求文档 */}
+                {currentAchievement.attachments && currentAchievement.attachments.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-medium text-text-primary mb-4">需求文档</h4>
+                    <div className="bg-bg-gray p-4 rounded-lg">
+                      <div className="space-y-3">
+                        {currentAchievement.attachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-border-light">
+                            <div className="flex items-center flex-1 min-w-0">
+                              <i className="fas fa-file-pdf text-red-500 text-xl mr-3"></i>
+                              <div>
+                                <p className="text-sm font-medium text-text-primary truncate max-w-[300px]">
+                                  {attachment.file_name}
+                                </p>
+                                <p className="text-xs text-text-muted">
+                                  文件大小: {(attachment.file_size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <a
+                              href={attachment.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center"
+                            >
+                              <i className="fas fa-eye mr-2"></i>
+                              查看
+                            </a>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
