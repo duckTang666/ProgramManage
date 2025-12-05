@@ -56,6 +56,7 @@ const ProjectIntroPage: React.FC = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentUrl, setDocumentUrl] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [instructors, setInstructors] = useState<User[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState('');
@@ -183,6 +184,26 @@ const ProjectIntroPage: React.FC = () => {
             duration: 0
           };
           setVideos([video]);
+        }
+        
+        // 设置需求文档
+        if (achievement.attachments && achievement.attachments.length > 0) {
+          const attachment = achievement.attachments[0]; // 只显示第一个附件
+          // 设置文档URL用于查看
+          setDocumentUrl(attachment.file_url);
+          // 从URL创建文件对象（用于显示）
+          fetch(attachment.file_url)
+            .then(response => response.blob())
+            .then(blob => {
+              const file = new File([blob], attachment.file_name, { type: attachment.file_url.includes('pdf') ? 'application/pdf' : 'application/octet-stream' });
+              setDocumentFile(file);
+            })
+            .catch(error => {
+              console.error('加载附件文件失败:', error);
+              // 即使加载失败，也设置文件名用于显示
+              const fileName = attachment.file_name;
+              setDocumentFile(new File([], fileName));
+            });
         }
         
         // 如果富文本编辑器已渲染，设置内容
@@ -403,12 +424,14 @@ const ProjectIntroPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       setDocumentFile(file);
+      setDocumentUrl(''); // 清除编辑模式的URL，使用新上传的文件
     }
   };
 
   // 清除文档
   const clearDocument = () => {
     setDocumentFile(null);
+    setDocumentUrl('');
     if (documentUploadRef.current) {
       documentUploadRef.current.value = '';
     }
@@ -498,6 +521,18 @@ const ProjectIntroPage: React.FC = () => {
       const result = await AchievementService.saveDraft(draftData);
       
       if (result.success) {
+        // 上传需求文档（如果有的话）
+        if (documentFile && result.data?.id) {
+          const attachmentResult = await AchievementService.uploadAndSaveAttachment(result.data.id, documentFile);
+          if (!attachmentResult.success) {
+            console.warn('需求文档上传失败:', attachmentResult.message);
+            // 不影响主要流程，但给出提示
+            alert(`草稿保存成功！但需求文档上传失败：${attachmentResult.message}`);
+          } else {
+            console.log('需求文档上传成功:', attachmentResult.data);
+          }
+        }
+        
         alert('草稿保存成功！');
       } else {
         alert(`保存草稿失败: ${result.message}`);
@@ -596,15 +631,31 @@ const ProjectIntroPage: React.FC = () => {
       };
 
       let result;
+      let achievementId: string;
+      
       if (isEditMode) {
         // 更新成果
         result = await AchievementService.updateAchievement(editingAchievementId, achievementData);
+        achievementId = editingAchievementId;
       } else {
         // 创建成果
         result = await AchievementService.createAchievement(achievementData);
+        achievementId = result.data?.id || '';
       }
       
       if (result.success) {
+        // 上传需求文档（如果有的话）
+        if (documentFile && achievementId) {
+          const attachmentResult = await AchievementService.uploadAndSaveAttachment(achievementId, documentFile);
+          if (!attachmentResult.success) {
+            console.warn('需求文档上传失败:', attachmentResult.message);
+            // 不影响主要流程，但给出提示
+            alert(`项目${isEditMode ? '更新' : '发布'}成功！但需求文档上传失败：${attachmentResult.message}`);
+          } else {
+            console.log('需求文档上传成功:', attachmentResult.data);
+          }
+        }
+        
         alert(isEditMode ? '项目更新成功！' : '项目发布成功！');
         
         if (!isEditMode) {
@@ -1100,16 +1151,41 @@ const ProjectIntroPage: React.FC = () => {
                 {documentFile && (
                   <div className="mt-4">
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center">
+                      <div className="flex items-center flex-1">
                         <i className="fas fa-file-pdf text-red-500 text-xl mr-3"></i>
-                        <span className="text-sm text-text-primary truncate max-w-[200px]">{documentFile.name}</span>
+                        {(documentFile.size > 0 || documentUrl) ? (
+                          <a
+                            href={documentUrl || (documentFile.size > 0 ? URL.createObjectURL(documentFile) : '#')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline cursor-pointer truncate max-w-[300px]"
+                          >
+                            {documentFile.name}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-text-primary truncate max-w-[300px]">{documentFile.name}</span>
+                        )}
                       </div>
-                      <button 
-                        onClick={clearDocument}
-                        className="text-text-muted hover:text-orange-500"
-                      >
-                        <i className="fas fa-times"></i>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        {(documentFile.size > 0 || documentUrl) && (
+                          <a
+                            href={documentUrl || (documentFile.size > 0 ? URL.createObjectURL(documentFile) : '#')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800"
+                            title="在新窗口打开PDF"
+                          >
+                            <i className="fas fa-external-link-alt"></i>
+                          </a>
+                        )}
+                        <button 
+                          onClick={clearDocument}
+                          className="text-text-muted hover:text-orange-500"
+                          title="删除文档"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

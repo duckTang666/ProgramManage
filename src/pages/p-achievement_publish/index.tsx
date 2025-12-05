@@ -425,6 +425,35 @@ const AchievementPublishPage: React.FC = () => {
       
       const result = await AchievementService.saveDraft(draftData);
       
+      // 上传附件到草稿（如果有）
+      if (result.success && result.data && formData.attachments.length > 0) {
+        console.log('📎 草稿开始上传附件，数量:', formData.attachments.length);
+        let uploadSuccessCount = 0;
+        let uploadErrorMessages = [];
+        
+        for (const attachment of formData.attachments) {
+          console.log('📎 草稿上传附件:', attachment.file.name);
+          const attachmentResult = await AchievementService.uploadAndSaveAttachment(result.data.id, attachment.file);
+          
+          if (attachmentResult.success) {
+            console.log('✅ 草稿附件上传成功:', attachment.file.name);
+            uploadSuccessCount++;
+          } else {
+            console.error('❌ 草稿附件上传失败:', attachment.file.name, attachmentResult.message);
+            uploadErrorMessages.push(`${attachment.file.name}: ${attachmentResult.message}`);
+          }
+        }
+        
+        if (uploadSuccessCount > 0) {
+          console.log(`📎 草稿附件上传完成，成功: ${uploadSuccessCount}/${formData.attachments.length}`);
+        }
+        
+        if (uploadErrorMessages.length > 0) {
+          const errorMessage = `有 ${uploadErrorMessages.length} 个附件上传失败:\n\n${uploadErrorMessages.join('\n\n')}\n\n草稿已保存，但部分附件未上传成功`;
+          alert(errorMessage);
+        }
+      }
+      
       if (result.success) {
         alert('草稿保存成功！');
         // 可以跳转到成果管理页面
@@ -544,6 +573,35 @@ const AchievementPublishPage: React.FC = () => {
       // 教师直接发布，学生需要审批
       const directPublish = user?.role === 2; // 教师直接发布
       const result = await AchievementService.createAchievement(achievementData, directPublish);
+      
+      // 上传附件（如果有）
+      if (result.success && result.data && formData.attachments.length > 0) {
+        console.log('📎 开始上传附件，数量:', formData.attachments.length);
+        let uploadSuccessCount = 0;
+        let uploadErrorMessages = [];
+        
+        for (const attachment of formData.attachments) {
+          console.log('📎 上传附件:', attachment.file.name);
+          const attachmentResult = await AchievementService.uploadAndSaveAttachment(result.data.id, attachment.file);
+          
+          if (attachmentResult.success) {
+            console.log('✅ 附件上传成功:', attachment.file.name);
+            uploadSuccessCount++;
+          } else {
+            console.error('❌ 附件上传失败:', attachment.file.name, attachmentResult.message);
+            uploadErrorMessages.push(`${attachment.file.name}: ${attachmentResult.message}`);
+          }
+        }
+        
+        if (uploadSuccessCount > 0) {
+          console.log(`📎 附件上传完成，成功: ${uploadSuccessCount}/${formData.attachments.length}`);
+        }
+        
+        if (uploadErrorMessages.length > 0) {
+          const errorMessage = `有 ${uploadErrorMessages.length} 个附件上传失败:\n\n${uploadErrorMessages.join('\n\n')}\n\n成果已发布，但部分附件未上传成功`;
+          alert(errorMessage);
+        }
+      }
       
       if (result.success) {
         alert('成果发布成功！');
@@ -666,12 +724,6 @@ const AchievementPublishPage: React.FC = () => {
                   <span className="ml-3">成果查看</span>
                 </Link>
               </li>
-            </ul>
-          </nav>
-          
-          {/* 底部导航 */}
-          <div className="mt-auto p-4 border-t border-border-light">
-            <ul>
               <li>
                 <Link 
                   to="/login" 
@@ -682,7 +734,7 @@ const AchievementPublishPage: React.FC = () => {
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
         </aside>
         
         {/* 主内容区域 */}

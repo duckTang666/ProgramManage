@@ -12,7 +12,10 @@ const AchievementApprovalPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState(user);
   
   // 获取当前教师ID
-  const currentInstructorId = String(user?.id || localStorage.getItem('userId') || '');
+  const [currentInstructorId] = useState(() => {
+    const userId = user?.id || localStorage.getItem('userId');
+    return userId ? String(userId) : '';
+  });
   
   // 状态管理
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -84,6 +87,13 @@ const AchievementApprovalPage: React.FC = () => {
     setIsLoading(true);
     
     try {
+      if (!currentInstructorId) {
+        console.error('❌ 教师ID为空，无法加载数据');
+        setAchievements([]);
+        setTotal(0);
+        return;
+      }
+      
       const filters: ApprovalFilters = {
         status: statusFilter,
         page: currentPage,
@@ -172,13 +182,30 @@ const AchievementApprovalPage: React.FC = () => {
   const handleReviewClick = async (achievement: AchievementWithUsers) => {
     setCurrentAchievementId(achievement.id);
     
-    // 获取详细的成果信息
-    const result = await AchievementService.getAchievementWithUsersById(achievement.id);
-    if (result.success && result.data) {
-      setCurrentAchievement(result.data);
-      setShowPreviewModal(true);
-    } else {
-      alert('获取成果详情失败：' + (result.message || '未知错误'));
+    try {
+      // 获取详细的成果信息
+      const result = await AchievementService.getAchievementWithUsersById(achievement.id);
+      if (result.success && result.data) {
+        const achievementData = result.data;
+        
+        // 获取附件信息
+        const attachmentsResult = await AchievementService.getAchievementAttachments(achievement.id);
+        if (attachmentsResult.success) {
+          achievementData.attachments = attachmentsResult.data || [];
+        console.log('🔍 获取到的附件数量:', achievementData.attachments.length, '个附件');
+        } else {
+          console.warn('获取附件信息失败:', attachmentsResult.message);
+          achievementData.attachments = [];
+        }
+        
+        setCurrentAchievement(achievementData);
+        setShowPreviewModal(true);
+      } else {
+        alert('获取成果详情失败：' + (result.message || '未知错误'));
+      }
+    } catch (error) {
+      console.error('获取成果详情失败:', error);
+      alert('获取成果详情失败：' + (error instanceof Error ? error.message : '未知错误'));
     }
   };
   
@@ -414,12 +441,6 @@ const AchievementApprovalPage: React.FC = () => {
                   <span className="ml-3">成果查看</span>
                 </Link>
               </li>
-            </ul>
-          </nav>
-          
-          {/* 底部导航 */}
-          <div className="mt-auto p-4 border-t border-border-light">
-            <ul>
               <li>
                 <button 
                   onClick={() => {
@@ -435,7 +456,7 @@ const AchievementApprovalPage: React.FC = () => {
                 </button>
               </li>
             </ul>
-          </div>
+          </nav>
         </aside>
         
         {/* 主内容区域 */}
@@ -903,6 +924,41 @@ const AchievementApprovalPage: React.FC = () => {
                           alt="成果封面" 
                           className="w-full max-w-md h-auto rounded-lg shadow-md mx-auto"
                         />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 需求文档 */}
+                  {currentAchievement.attachments && currentAchievement.attachments.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-medium text-text-primary mb-4">需求文档</h4>
+                      <div className="bg-bg-gray p-4 rounded-lg">
+                        <div className="space-y-3">
+                          {currentAchievement.attachments.map((attachment) => (
+                            <div key={attachment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-border-light">
+                              <div className="flex items-center flex-1 min-w-0">
+                                <i className="fas fa-file-pdf text-red-500 text-xl mr-3"></i>
+                                <div>
+                                  <p className="text-sm font-medium text-text-primary truncate max-w-[300px]">
+                                    {attachment.file_name}
+                                  </p>
+                                  <p className="text-xs text-text-muted">
+                                    文件大小: {(attachment.file_size / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                </div>
+                              </div>
+                            <a
+                              href={attachment.file_url}
+                              target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center"
+                              >
+                                <i className="fas fa-eye mr-2"></i>
+                                查看
+                              </a>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
