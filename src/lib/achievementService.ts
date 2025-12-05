@@ -482,11 +482,14 @@ export class AchievementService {
 
       const results = await Promise.all(uploadPromises);
       
-      // 替换HTML中的图片URL
+      // 替换HTML中的图片URL，按照要求的格式存储：<br><img src="..."><br>
       let processedHtml = htmlContent;
       results.forEach(result => {
         if (result.newSrc) {
-          processedHtml = processedHtml.replace(result.originalSrc, result.newSrc);
+          // 创建正确的img标签格式
+          const imgTag = `<img src="${result.newSrc}">`;
+          // 替换原有的img标签
+          processedHtml = processedHtml.replace(new RegExp(`<img[^>]*src="${result.originalSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>`, 'g'), imgTag);
         }
       });
 

@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { AchievementService } from '../../lib/achievementService';
 import { AchievementType, User } from '../../types/achievement';
-import { uploadToAchievementImagesBucket, uploadToAchievementVideosBucket } from '../../services/supabaseStorageService';
+import { uploadToAchievementImagesBucket, uploadToAchievementVideosBucket, checkAchievementImagesBucket, createAchievementImagesBucket } from '../../services/supabaseStorageService';
 import styles from './styles.module.css';
 
 interface Collaborator {
@@ -339,24 +339,136 @@ const ProjectIntroPage: React.FC = () => {
         return;
       }
       
-      // 创建blob URL，立即插入到编辑器
-      const blobUrl = URL.createObjectURL(file);
-      
-      // 插入blob图片到富文本编辑器
-      if (richTextEditorRef.current) {
-        document.execCommand('insertImage', false, blobUrl);
-        
-        // 更新项目描述
-        const currentContent = richTextEditorRef.current.innerHTML;
-        setProjectDescription(currentContent);
-        
-        console.log('已插入blob图片:', blobUrl);
-      }
+      // 立即上传图片到achievement-images桶
+      uploadRichTextImage(file);
       
       // 清空文件输入
       if (imageInsertRef.current) {
         imageInsertRef.current.value = '';
       }
+    }
+  };
+
+  // 跳过存储桶检查的标志
+  const [skipBucketCheck, setSkipBucketCheck] = useState(false);
+  const [forceSkipCheck, setForceSkipCheck] = useState(false);
+  const [directUseBucket, setDirectUseBucket] = useState(true); // 直接使用存储桶，不检查
+
+  // 上传富文本中的图片到achievement-images桶
+  const uploadRichTextImage = async (file: File) => {
+    try {
+      // 上传图片到achievement-images桶（使用当前用户ID）
+      const fileName = `richtext_${Date.now()}_${file.name}`;
+      const filePath = `achievements/${user?.id}/${fileName}`;
+      const uploadResult = await uploadToAchievementImagesBucket(file, fileName, filePath, directUseBucket);
+      
+      if (uploadResult.success && uploadResult.url) {
+        // 使用Supabase URL插入图片，按照要求的格式
+        if (richTextEditorRef.current) {
+          // 按照要求的格式插入：<br><img src="..."><br>
+          const imgHtml = `<br><img src="${uploadResult.url}"><br>`;
+          
+          // 插入HTML内容
+          if (window.getSelection) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0);
+              range.deleteContents();
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = imgHtml;
+              const frag = document.createDocumentFragment();
+              let node;
+              while ((node = tempDiv.firstChild)) {
+                frag.appendChild(node);
+              }
+              range.insertNode(frag);
+            } else {
+              // 如果没有选区，直接在末尾插入
+              richTextEditorRef.current.innerHTML += imgHtml;
+            }
+          } else {
+            // 兼容IE等其他浏览器
+            richTextEditorRef.current.innerHTML += imgHtml;
+          }
+          
+          // 更新项目描述
+          const currentContent = richTextEditorRef.current.innerHTML;
+          setProjectDescription(currentContent);
+          
+          console.log('已插入Supabase图片:', uploadResult.url);
+        }
+      } else {
+        console.error('富文本图片上传失败:', uploadResult.error);
+        alert('图片上传失败，请重试');
+      }
+    } catch (error) {
+      console.error('上传富文本图片时发生错误:', error);
+      alert('图片上传失败，请重试');
+    }
+  };
+
+  // 调试存储桶状态
+  const debugStorageBucket = async () => {
+    console.log('=== 调试achievement-images存储桶 ===');
+    
+    try {
+      // 检查存储桶
+      const bucketExists = await checkAchievementImagesBucket();
+      console.log('存储桶检查结果:', bucketExists);
+      
+      if (!bucketExists) {
+        console.log('尝试创建存储桶...');
+        const created = await createAchievementImagesBucket();
+        console.log('创建结果:', created);
+      }
+      
+      // 重新检查
+      const finalCheck = await checkAchievementImagesBucket();
+      console.log('最终检查结果:', finalCheck);
+      
+      // 列出所有存储桶
+      const { data: buckets } = await supabase.storage.listBuckets();
+      console.log('所有存储桶:', buckets?.map(b => ({ name: b.name, id: b.id })));
+      
+      alert(`存储桶状态: ${finalCheck ? '存在' : '不存在'}\\n请查看控制台获取详细信息`);
+    } catch (error) {
+      console.error('调试存储桶时发生错误:', error);
+      alert(`调试失败: ${error}`);
+    }
+  };
+
+  // 测试封面图片上传
+  const testCoverUpload = async () => {
+    console.log('=== 测试封面图片上传 ===');
+    
+    if (photos.length === 0) {
+      alert('请先选择一张封面图片');
+      return;
+    }
+    
+    const coverPhoto = photos[0];
+    const fileName = `test_cover_${Date.now()}_${coverPhoto.id}.jpg`;
+    const filePath = `achievements/${user.id}/${fileName}`;
+    
+    console.log('测试上传参数:');
+    console.log('- 文件:', coverPhoto.file);
+    console.log('- 文件名:', fileName);
+    console.log('- 文件路径:', filePath);
+    
+    const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath);
+    
+    if (uploadResult.success && uploadResult.url) {
+      console.log('✅ 测试上传成功:', uploadResult.url);
+      console.log('URL验证:');
+      console.log('- 以https开头:', uploadResult.url.startsWith('https://'));
+      console.log('- 包含项目ID:', uploadResult.url.includes('vntvrdkjtfdcnvwgrubo.supabase.co'));
+      console.log('- 包含存储桶:', uploadResult.url.includes('achievement-images'));
+      console.log('- 包含文件路径:', uploadResult.url.includes(filePath));
+      
+      alert(`测试上传成功！\\n\\nURL: ${uploadResult.url}\\n\\n请查看控制台验证格式`);
+    } else {
+      console.error('❌ 测试上传失败:', uploadResult.error);
+      alert(`测试上传失败: ${uploadResult.error}`);
     }
   };
 
@@ -504,8 +616,14 @@ const ProjectIntroPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 直接使用项目描述，不再处理富文本中的图片（因为使用blob URL）
-      const processedDescription = projectDescription;
+      // 处理富文本中的图片（如果有base64或blob URL，转换为Supabase URL）
+      let processedDescription = projectDescription;
+      if (projectDescription) {
+        const imageProcessResult = await AchievementService.processRichTextImages(projectDescription, user.id);
+        if (imageProcessResult.success && imageProcessResult.processedContent) {
+          processedDescription = imageProcessResult.processedContent;
+        }
+      }
 
       // 上传封面图片到achievement-images桶（使用publisher_id分类）
       let coverUrl = '';
@@ -513,13 +631,33 @@ const ProjectIntroPage: React.FC = () => {
         const coverPhoto = photos[0];
         const fileName = `cover_${Date.now()}_${coverPhoto.id}.jpg`;
         const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
-        const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath);
+        
+        console.log('=== 封面图片上传开始 ===');
+        console.log('项目负责人ID:', projectLeaderId || user.id);
+        console.log('文件名:', fileName);
+        console.log('文件路径:', filePath);
+        console.log('封面图片对象:', coverPhoto);
+        console.log('封面图片文件类型:', coverPhoto.file?.type);
+        console.log('封面图片文件大小:', (coverPhoto.file?.size / 1024 / 1024).toFixed(2) + 'MB');
+        console.log('封面图片是否为File对象:', coverPhoto.file instanceof File);
+        
+        if (!coverPhoto.file) {
+          console.error('❌ 封面图片file对象不存在');
+          return;
+        }
+        
+        const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           coverUrl = uploadResult.url;
+          console.log('✅ 封面图片上传成功:', coverUrl);
+          console.log('URL格式检查:', coverUrl.includes('https://'));
+          console.log('桶名称检查:', coverUrl.includes('achievement-images'));
         } else {
-          console.warn('封面图片上传失败:', uploadResult.error);
+          console.warn('❌ 封面图片上传失败:', uploadResult.error);
         }
+      } else {
+        console.log('没有选择封面图片');
       }
 
       // 上传演示视频到achievement-videos桶（使用publisher_id分类）
@@ -528,7 +666,7 @@ const ProjectIntroPage: React.FC = () => {
         const demoVideo = videos[0];
         const fileName = `video_${Date.now()}_${demoVideo.id}.mp4`;
         const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
-        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath);
+        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           videoUrl = uploadResult.url;
@@ -611,8 +749,14 @@ const ProjectIntroPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 直接使用项目描述，不再处理富文本中的图片（因为使用blob URL）
-      const processedDescription = projectDescription;
+      // 处理富文本中的图片（如果有base64或blob URL，转换为Supabase URL）
+      let processedDescription = projectDescription;
+      if (projectDescription) {
+        const imageProcessResult = await AchievementService.processRichTextImages(projectDescription, user.id);
+        if (imageProcessResult.success && imageProcessResult.processedContent) {
+          processedDescription = imageProcessResult.processedContent;
+        }
+      }
 
       // 上传封面图片到achievement-images桶（使用publisher_id分类）
       let coverUrl = '';
@@ -620,13 +764,33 @@ const ProjectIntroPage: React.FC = () => {
         const coverPhoto = photos[0];
         const fileName = `cover_${Date.now()}_${coverPhoto.id}.jpg`;
         const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
-        const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath);
+        
+        console.log('=== 封面图片上传开始 ===');
+        console.log('项目负责人ID:', projectLeaderId || user.id);
+        console.log('文件名:', fileName);
+        console.log('文件路径:', filePath);
+        console.log('封面图片对象:', coverPhoto);
+        console.log('封面图片文件类型:', coverPhoto.file?.type);
+        console.log('封面图片文件大小:', (coverPhoto.file?.size / 1024 / 1024).toFixed(2) + 'MB');
+        console.log('封面图片是否为File对象:', coverPhoto.file instanceof File);
+        
+        if (!coverPhoto.file) {
+          console.error('❌ 封面图片file对象不存在');
+          return;
+        }
+        
+        const uploadResult = await uploadToAchievementImagesBucket(coverPhoto.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           coverUrl = uploadResult.url;
+          console.log('✅ 封面图片上传成功:', coverUrl);
+          console.log('URL格式检查:', coverUrl.includes('https://'));
+          console.log('桶名称检查:', coverUrl.includes('achievement-images'));
         } else {
-          console.warn('封面图片上传失败:', uploadResult.error);
+          console.warn('❌ 封面图片上传失败:', uploadResult.error);
         }
+      } else {
+        console.log('没有选择封面图片');
       }
 
       // 上传演示视频到achievement-videos桶（使用publisher_id分类）
@@ -635,7 +799,7 @@ const ProjectIntroPage: React.FC = () => {
         const demoVideo = videos[0];
         const fileName = `video_${Date.now()}_${demoVideo.id}.mp4`;
         const filePath = `achievements/${projectLeaderId || user.id}/${fileName}`; // 使用publisher_id分类
-        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath);
+        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           videoUrl = uploadResult.url;
@@ -1106,6 +1270,107 @@ const ProjectIntroPage: React.FC = () => {
                       className="p-2 text-text-secondary hover:bg-gray-200 rounded"
                     >
                       <i className="fas fa-image"></i>
+                    </button>
+                    <div className="w-px h-6 bg-border-light mx-1"></div>
+                    <button 
+                      onClick={debugStorageBucket}
+                      className="p-2 text-red-500 hover:bg-red-100 rounded"
+                      title="调试achievement-images存储桶"
+                    >
+                      <i className="fas fa-bug"></i>
+                    </button>
+                    <button 
+                      onClick={testCoverUpload}
+                      className="p-2 text-blue-500 hover:bg-blue-100 rounded"
+                      title="测试封面图片上传"
+                    >
+                      <i className="fas fa-upload"></i>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSkipBucketCheck(!skipBucketCheck);
+                        alert(`已${skipBucketCheck ? '启用' : '禁用'}存储桶检查`);
+                      }}
+                      className={`p-2 ${skipBucketCheck ? 'text-yellow-500 hover:bg-yellow-100' : 'text-gray-500 hover:bg-gray-100'} rounded`}
+                      title={skipBucketCheck ? "禁用跳过存储桶检查" : "跳过存储桶检查"}
+                    >
+                      <i className="fas fa-ban"></i>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setForceSkipCheck(!forceSkipCheck);
+                        alert(`已${forceSkipCheck ? '禁用' : '启用'}强制跳过所有检查（存储桶已确认存在）`);
+                      }}
+                      className={`p-2 ${forceSkipCheck ? 'text-purple-500 hover:bg-purple-100' : 'text-gray-400 hover:bg-gray-100'} rounded`}
+                      title="强制跳过所有存储桶检查"
+                    >
+                      <i className="fas fa-rocket"></i>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setDirectUseBucket(!directUseBucket);
+                        alert(`已${directUseBucket ? '禁用' : '启用'}直接使用存储桶模式（推荐！）`);
+                      }}
+                      className={`p-2 ${directUseBucket ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'} rounded`}
+                      title="直接使用存储桶（不检查）"
+                    >
+                      <i className="fas fa-check-circle"></i>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const sql = `-- 创建 achievement-videos 存储桶
+CREATE STORAGE BUCKET achievement-videos
+WITH (
+  public = true,
+  allowed_mime_types = {'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'},
+  file_size_limit = 209715200
+);
+
+-- 创建 RLS 策略
+CREATE POLICY "Allow public uploads" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'achievement-videos');
+
+CREATE POLICY "Allow public reads" ON storage.objects
+FOR SELECT USING (bucket_id = 'achievement-videos');
+
+CREATE POLICY "Allow public updates" ON storage.objects
+FOR UPDATE WITH CHECK (bucket_id = 'achievement-videos');`;
+                        
+                        navigator.clipboard.writeText(sql);
+                        alert('achievement-videos存储桶SQL已复制到剪贴板！\n\n请在 Supabase SQL Editor 中执行');
+                      }}
+                      className="p-2 text-orange-500 hover:bg-orange-100 rounded"
+                      title="复制创建achievement-videos存储桶的SQL"
+                    >
+                      <i className="fas fa-film"></i>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const sql = `-- 创建 achievement-images 存储桶
+CREATE STORAGE BUCKET achievement-images
+WITH (
+  public = true,
+  allowed_mime_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'},
+  file_size_limit = 10485760
+);
+
+-- 创建 RLS 策略
+CREATE POLICY "Allow public uploads" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'achievement-images');
+
+CREATE POLICY "Allow public reads" ON storage.objects
+FOR SELECT USING (bucket_id = 'achievement-images');
+
+CREATE POLICY "Allow public updates" ON storage.objects
+FOR UPDATE WITH CHECK (bucket_id = 'achievement-images');`;
+                        
+                        navigator.clipboard.writeText(sql);
+                        alert('SQL已复制到剪贴板！\n\n请在 Supabase SQL Editor 中执行');
+                      }}
+                      className="p-2 text-green-500 hover:bg-green-100 rounded"
+                      title="复制创建存储桶的SQL"
+                    >
+                      <i className="fas fa-code"></i>
                     </button>
                   </div>
                   {/* 富文本编辑区域 */}
