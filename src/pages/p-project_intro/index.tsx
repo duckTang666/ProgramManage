@@ -598,7 +598,13 @@ const ProjectIntroPage: React.FC = () => {
 
   // 保存草稿
   const handleSaveDraft = async () => {
-    if (!projectName || !projectLeader) {
+    console.log('🔍 验证数据:');
+    console.log('  projectName:', projectName);
+    console.log('  projectLeader:', projectLeader);
+    console.log('  projectLeaderId:', projectLeaderId);
+    console.log('  studentUsers:', studentUsers.length);
+    
+    if (!projectName || !projectLeaderId) {
       alert('请输入项目名称和负责人');
       return;
     }
@@ -763,7 +769,12 @@ const ProjectIntroPage: React.FC = () => {
 
   // 项目上传
   const handleUploadProject = async () => {
-    if (!projectName || !projectLeader) {
+    console.log('🔍 上传项目验证数据:');
+    console.log('  projectName:', projectName);
+    console.log('  projectLeader:', projectLeader);
+    console.log('  projectLeaderId:', projectLeaderId);
+    
+    if (!projectName || !projectLeaderId) {
       alert('请输入项目名称和负责人');
       return;
     }
@@ -1181,7 +1192,10 @@ const ProjectIntroPage: React.FC = () => {
                     type="text" 
                     id="project-name"
                     value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
+                    onChange={(e) => {
+                      console.log('🔄 项目名称输入:', e.target.value);
+                      setProjectName(e.target.value);
+                    }}
                     className={`w-full px-4 py-3 border border-border-light rounded-lg ${styles.searchInputFocus}`}
                     placeholder="请输入项目名称"
                   />
@@ -1192,7 +1206,9 @@ const ProjectIntroPage: React.FC = () => {
                     id="project-leader"
                     value={projectLeaderId}
                     onChange={(e) => {
+                      console.log('🔄 选择负责人:', e.target.value);
                       const selectedUser = studentUsers.find(u => u.id === e.target.value);
+                      console.log('🔍 找到的用户:', selectedUser);
                       setProjectLeaderId(e.target.value);
                       setProjectLeader(selectedUser?.full_name || selectedUser?.username || '');
                     }}
