@@ -1433,10 +1433,7 @@ const ProjectIntroPage: React.FC = () => {
                 onInput={handleRichTextChange}
                 suppressContentEditableWarning={true}
               ></div>
-              <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-                <i className="fas fa-info-circle mr-1"></i>
-                提示：项目描述将只保留图片标签(&lt;img src&gt;)、换行标签(&lt;br&gt;)和纯文本，其他HTML标签会被自动移除
-              </div>
+
                   <input 
                     ref={imageInsertRef}
                     type="file" 
