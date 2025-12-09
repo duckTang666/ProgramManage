@@ -1416,133 +1416,14 @@ const ProjectIntroPage: React.FC = () => {
                       <i className="fas fa-image"></i>
                     </button>
                     <div className="w-px h-6 bg-border-light mx-1"></div>
-                    <button 
-                      onClick={debugStorageBucket}
-                      className="p-2 text-red-500 hover:bg-red-100 rounded"
-                      title="调试achievement-images存储桶"
-                    >
-                      <i className="fas fa-bug"></i>
-                    </button>
-                    <button 
-                      onClick={testCoverUpload}
-                      className="p-2 text-blue-500 hover:bg-blue-100 rounded"
-                      title="测试封面图片上传"
-                    >
-                      <i className="fas fa-upload"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setSkipBucketCheck(!skipBucketCheck);
-                        alert(`已${skipBucketCheck ? '启用' : '禁用'}存储桶检查`);
-                      }}
-                      className={`p-2 ${skipBucketCheck ? 'text-yellow-500 hover:bg-yellow-100' : 'text-gray-500 hover:bg-gray-100'} rounded`}
-                      title={skipBucketCheck ? "禁用跳过存储桶检查" : "跳过存储桶检查"}
-                    >
-                      <i className="fas fa-ban"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setForceSkipCheck(!forceSkipCheck);
-                        alert(`已${forceSkipCheck ? '禁用' : '启用'}强制跳过所有检查（存储桶已确认存在）`);
-                      }}
-                      className={`p-2 ${forceSkipCheck ? 'text-purple-500 hover:bg-purple-100' : 'text-gray-400 hover:bg-gray-100'} rounded`}
-                      title="强制跳过所有存储桶检查"
-                    >
-                      <i className="fas fa-rocket"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setDirectUseBucket(!directUseBucket);
-                        alert(`已${directUseBucket ? '禁用' : '启用'}直接使用存储桶模式（推荐！）`);
-                      }}
-                      className={`p-2 ${directUseBucket ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'} rounded`}
-                      title="直接使用存储桶（不检查）"
-                    >
-                      <i className="fas fa-check-circle"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const sql = `-- 为 achievement-videos 存储桶创建宽松的 RLS 策略
--- 允许所有用户上传和访问
-DROP POLICY IF EXISTS "Allow public uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public reads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public updates" ON storage.objects;
 
-CREATE POLICY "Allow all operations on achievement-videos" ON storage.objects
-FOR ALL USING (bucket_id = 'achievement-videos')
-WITH CHECK (bucket_id = 'achievement-videos');
 
--- 或者使用更宽松的策略
-CREATE POLICY "Enable video uploads" ON storage.objects
-FOR INSERT WITH CHECK (bucket_id = 'achievement-videos');
-                        
-CREATE POLICY "Enable video access" ON storage.objects
-FOR SELECT USING (bucket_id = 'achievement-videos');`;
-                        
-                        navigator.clipboard.writeText(sql);
-                        alert('achievement-videos桶RLS策略SQL已复制到剪贴板！\n\n请在 Supabase SQL Editor 中执行');
-                      }}
-                      className="p-2 text-red-600 hover:bg-red-100 rounded"
-                      title="复制创建achievement-videos桶RLS策略的SQL"
-                    >
-                      <i className="fas fa-shield-alt"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const sql = `-- 创建 achievement-videos 存储桶
-CREATE STORAGE BUCKET achievement-videos
-WITH (
-  public = true,
-  allowed_mime_types = {'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'},
-  file_size_limit = 209715200
-);
 
--- 创建 RLS 策略
-CREATE POLICY "Allow public uploads" ON storage.objects
-FOR INSERT WITH CHECK (bucket_id = 'achievement-videos');
 
-CREATE POLICY "Allow public reads" ON storage.objects
-FOR SELECT USING (bucket_id = 'achievement-videos');
 
-CREATE POLICY "Allow public updates" ON storage.objects
-FOR UPDATE WITH CHECK (bucket_id = 'achievement-videos');`;
-                        
-                        navigator.clipboard.writeText(sql);
-                        alert('achievement-videos存储桶SQL已复制到剪贴板！\n\n请在 Supabase SQL Editor 中执行');
-                      }}
-                      className="p-2 text-orange-500 hover:bg-orange-100 rounded"
-                      title="复制创建achievement-videos存储桶的SQL"
-                    >
-                      <i className="fas fa-film"></i>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const sql = `-- 创建 achievement-images 存储桶
-CREATE STORAGE BUCKET achievement-images
-WITH (
-  public = true,
-  allowed_mime_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'},
-  file_size_limit = 10485760
-);
 
--- 创建 RLS 策略
-CREATE POLICY "Allow public uploads" ON storage.objects
-FOR INSERT WITH CHECK (bucket_id = 'achievement-images');
 
-CREATE POLICY "Allow public reads" ON storage.objects
-FOR SELECT USING (bucket_id = 'achievement-images');
 
-CREATE POLICY "Allow public updates" ON storage.objects
-FOR UPDATE WITH CHECK (bucket_id = 'achievement-images');`;
-                        
-                        navigator.clipboard.writeText(sql);
-                        alert('SQL已复制到剪贴板！\n\n请在 Supabase SQL Editor 中执行');
-                      }}
-                      className="p-2 text-green-500 hover:bg-green-100 rounded"
-                      title="复制创建存储桶的SQL"
-                    >
-                      <i className="fas fa-code"></i>
-                    </button>
                   </div>
               {/* 富文本编辑区域 */}
               <div 
