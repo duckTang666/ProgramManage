@@ -1249,6 +1249,51 @@ export class AchievementService {
     }
   }
 
+  // 删除成果的所有附件
+  static async deleteAchievementAttachments(achievementId: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      // 获取所有附件
+      const attachmentsResult = await this.getAchievementAttachments(achievementId);
+      if (!attachmentsResult.success || !attachmentsResult.data) {
+        return { success: false, message: '获取附件列表失败' };
+      }
+
+      const attachments = attachmentsResult.data;
+
+      // 删除数据库中的附件记录
+      const { error: deleteError } = await supabase
+        .from('achievement_attachments')
+        .delete()
+        .eq('achievement_id', achievementId);
+
+      if (deleteError) {
+        console.error('删除附件记录失败:', deleteError);
+        return { success: false, message: '删除附件记录失败' };
+      }
+
+      // 删除存储中的文件
+      for (const attachment of attachments) {
+        if (attachment.file_url) {
+          const filePath = attachment.file_url.split('/').slice(-2).join('/');
+          const { error: storageError } = await supabase
+            .storage
+            .from('achievement_attachments')
+            .remove([filePath]);
+
+          if (storageError) {
+            console.warn(`删除附件文件失败: ${attachment.file_url}`, storageError);
+          }
+        }
+      }
+
+      console.log(`✅ 成果 ${achievementId} 的 ${attachments.length} 个附件已删除`);
+      return { success: true };
+    } catch (error) {
+      console.error('删除附件时发生错误:', error);
+      return { success: false, message: error instanceof Error ? error.message : '删除附件失败' };
+    }
+  }
+
   // 处理富文本中的图片，上传到achievement-images桶
   static async processRichTextImages(htmlContent: string, userId: string): Promise<{ success: boolean; processedContent?: string; message?: string }> {
     try {

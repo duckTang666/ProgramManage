@@ -389,11 +389,6 @@ const BusinessProcessPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <nav className="text-sm text-text-muted mb-2">
-                <Link to="/home" className="hover:text-secondary">首页</Link>
-                <span className="mx-2">/</span>
-                <span className="text-text-primary">成果管理</span>
-              </nav>
               <h2 className="text-2xl font-bold text-text-primary mb-2">成果管理</h2>
               <p className="text-text-secondary">管理和查看您的项目成果，包括编辑、发布和查看状态</p>
             </div>

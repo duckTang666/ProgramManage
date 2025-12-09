@@ -703,7 +703,7 @@ const AchievementViewPage: React.FC = () => {
                       <img 
                         src={currentAchievement.cover_url} 
                         alt="成果封面" 
-                        className="w-full max-w-md h-auto rounded-lg shadow-md mx-auto"
+                        className="w-full h-auto rounded-lg shadow-md"
                       />
                     </div>
                   </div>
@@ -729,7 +729,7 @@ const AchievementViewPage: React.FC = () => {
                     <div className="bg-bg-gray p-4 rounded-lg">
                       <video 
                         controls 
-                        className="w-full max-w-md h-auto rounded-lg mx-auto"
+                        className="w-full h-auto rounded-lg"
                         src={currentAchievement.video_url}
                       >
                         您的浏览器不支持视频播放
