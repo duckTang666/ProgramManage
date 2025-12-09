@@ -1033,6 +1033,15 @@ const ProjectIntroPage: React.FC = () => {
       }
       
       if (result.success) {
+        // 在编辑模式下，如果上传了新的需求文档，先删除旧的附件
+        if (isEditMode && documentFile && achievementId) {
+          console.log('🗑️ 编辑模式：删除旧的需求文档附件...');
+          const deleteResult = await AchievementService.deleteAchievementAttachments(editingAchievementId);
+          if (!deleteResult.success) {
+            console.warn('删除旧附件失败:', deleteResult.message);
+          }
+        }
+
         // 上传需求文档（如果有的话）
         if (documentFile && achievementId) {
           const attachmentResult = await AchievementService.uploadAndSaveAttachment(achievementId, documentFile);
