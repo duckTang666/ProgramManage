@@ -345,11 +345,6 @@ const StudentInfoPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-text-primary mb-2">学生端数据看板</h2>
-              <nav className="text-sm text-text-muted">
-                <span>首页</span>
-                <i className="fas fa-chevron-right mx-2"></i>
-                <span className="text-secondary">学生端数据看板</span>
-              </nav>
             </div>
             <div className="text-right">
               <p className="text-sm text-text-muted">最后更新</p>

@@ -1296,14 +1296,9 @@ const ProjectIntroPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-text-primary mb-2">
+              <h2 className="text-2xl font-bold text-text-primary">
                 {isEditMode ? '编辑成果' : '学生端成果发布'}
               </h2>
-              <nav className="text-sm text-text-muted">
-                <Link to="/home" className="hover:text-orange-500">首页</Link>
-                <span className="mx-2">/</span>
-                <span className="text-text-primary">{isEditMode ? '编辑成果' : '成果发布'}</span>
-              </nav>
             </div>
           </div>
         </div>
