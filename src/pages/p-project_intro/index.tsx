@@ -58,6 +58,7 @@ const ProjectIntroPage: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string>('');
+  const [originalDocumentUrl, setOriginalDocumentUrl] = useState<string>(''); // 记录原始文档URL，用于判断是否有变更
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [instructors, setInstructors] = useState<User[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState('');
@@ -213,6 +214,7 @@ const ProjectIntroPage: React.FC = () => {
           const attachment = achievement.attachments[0]; // 只显示第一个附件
           // 设置文档URL用于查看
           setDocumentUrl(attachment.file_url);
+          setOriginalDocumentUrl(attachment.file_url); // 记录原始URL
           // 从URL创建文件对象（用于显示）
           fetch(attachment.file_url)
             .then(response => response.blob())
@@ -618,6 +620,7 @@ const ProjectIntroPage: React.FC = () => {
     if (file) {
       setDocumentFile(file);
       setDocumentUrl(''); // 清除编辑模式的URL，使用新上传的文件
+      setOriginalDocumentUrl(''); // 清除原始URL标记，表示有新文件
     }
   };
 
@@ -625,6 +628,7 @@ const ProjectIntroPage: React.FC = () => {
   const clearDocument = () => {
     setDocumentFile(null);
     setDocumentUrl('');
+    setOriginalDocumentUrl(''); // 清除原始URL
     if (documentUploadRef.current) {
       documentUploadRef.current.value = '';
     }
@@ -782,7 +786,10 @@ const ProjectIntroPage: React.FC = () => {
       
       if (result.success) {
         // 上传需求文档（如果有的话）
-        if (documentFile && result.data?.id) {
+        // 草稿模式下，只有在文档有变更的情况下才上传
+        const shouldUploadDocument = documentFile && (documentUrl !== originalDocumentUrl);
+        
+        if (shouldUploadDocument && result.data?.id) {
           const attachmentResult = await AchievementService.uploadAndSaveAttachment(result.data.id, documentFile);
           if (!attachmentResult.success) {
             console.warn('需求文档上传失败:', attachmentResult.message);
@@ -791,6 +798,8 @@ const ProjectIntroPage: React.FC = () => {
           } else {
             console.log('需求文档上传成功:', attachmentResult.data);
           }
+        } else if (documentFile && documentUrl === originalDocumentUrl) {
+          console.log('草稿模式：保留原有需求文档，不重新上传');
         }
         
         alert('草稿保存成功！');
@@ -971,7 +980,15 @@ const ProjectIntroPage: React.FC = () => {
       
       if (result.success) {
         // 上传需求文档（如果有的话）
-        if (documentFile && achievementId) {
+        // 只在以下情况下上传文档：
+        // 1. 非编辑模式（新建项目）且有文档
+        // 2. 编辑模式下有新的文档上传（通过比较原始URL判断是否有变更）
+        const shouldUploadDocument = documentFile && (
+          !isEditMode || // 新建项目
+          (isEditMode && documentUrl !== originalDocumentUrl) // 编辑模式下文档有变更
+        );
+        
+        if (shouldUploadDocument && achievementId) {
           const attachmentResult = await AchievementService.uploadAndSaveAttachment(achievementId, documentFile);
           if (!attachmentResult.success) {
             console.warn('需求文档上传失败:', attachmentResult.message);
@@ -980,6 +997,8 @@ const ProjectIntroPage: React.FC = () => {
           } else {
             console.log('需求文档上传成功:', attachmentResult.data);
           }
+        } else if (isEditMode && documentFile && documentUrl === originalDocumentUrl) {
+          console.log('编辑模式：保留原有需求文档，不重新上传');
         }
         
         alert(isEditMode ? '项目更新成功！' : '项目发布成功！');
