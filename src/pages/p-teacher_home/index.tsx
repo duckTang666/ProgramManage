@@ -218,6 +218,10 @@ const TeacherHomePage: React.FC = () => {
     navigate('/login');
   };
 
+  const handleProfileClick = () => {
+    navigate('/personal-center');
+  };
+
   return (
     <div className={styles.pageWrapper}>
       <div className="flex flex-1 overflow-hidden">
@@ -345,17 +349,23 @@ const TeacherHomePage: React.FC = () => {
               
               {/* 用户信息 */}
               <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-3">
+                <button 
+                  onClick={handleProfileClick}
+                  className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors duration-200 cursor-pointer"
+                  title="进入个人中心"
+                >
                   <img 
                     src="https://s.coze.cn/image/uf-pHaNc3bk/" 
                     alt="教师头像" 
                     className="w-10 h-10 rounded-full object-cover border-2 border-secondary"
                   />
                   <div className="hidden md:block">
-                    <p className="text-sm font-medium text-text-primary">{user?.full_name || '教师'}</p>
+                    <p className="text-sm font-medium text-text-primary">
+                      {user?.full_name || '教师'}
+                    </p>
                     <p className="text-xs text-text-muted">计算机科学与技术系</p>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
           </header>
