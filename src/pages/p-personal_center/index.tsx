@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useApproval } from '../../contexts/ApprovalContext';
 import { supabase } from '../../lib/supabase';
 import { getUsers, getAllClassesForSwitchFallback } from '../../services/supabaseUserService';
 import styles from './styles.module.css';
@@ -49,6 +50,7 @@ interface Notification {
 const PersonalCenter: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { pendingCount, refreshPendingCount } = useApproval();
   const [isEditMode, setIsEditMode] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -75,6 +77,19 @@ const PersonalCenter: React.FC = () => {
   const [grades, setGrades] = useState<any[]>([]);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [userNotifications, setUserNotifications] = useState<Notification[]>([]);
+
+  // 根据用户角色定义颜色主题
+  const getColorTheme = () => {
+    const isTeacher = user?.role === 2;
+    return {
+      // 教师端使用蓝色系，学生端使用橙色系
+      primaryIcon: isTeacher ? 'text-secondary' : 'text-orange-500',
+      primaryButton: isTeacher ? 'bg-secondary hover:bg-accent' : 'bg-orange-500 hover:bg-orange-600',
+      primaryText: isTeacher ? 'text-secondary' : 'text-orange-500',
+      loadingIcon: isTeacher ? 'text-secondary' : 'text-orange-500',
+      reloadButton: isTeacher ? 'bg-secondary hover:bg-accent' : 'bg-orange-500 hover:bg-orange-600'
+    };
+  };
 
   
 
@@ -252,6 +267,9 @@ const PersonalCenter: React.FC = () => {
     
     // 获取用户数据
     fetchUserProfile();
+    
+    // 刷新待审批数量
+    refreshPendingCount();
     
     return () => { document.title = originalTitle; };
   }, [user?.id]);
@@ -529,80 +547,134 @@ const PersonalCenter: React.FC = () => {
       <header className="fixed top-0 left-0 right-0 bg-bg-light border-b border-border-light h-16 z-50">
         <div className="flex items-center justify-between h-full px-6">
           {/* 左侧Logo区域 */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-graduation-cap text-white text-lg"></i>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-text-primary">河北师范大学软件学院</h1>
-                <p className="text-xs text-text-muted">软院项目通</p>
-              </div>
+          <div className="flex items-center space-x-3">
+            <div className={`w-12 h-12 ${user?.role === 2 ? 'bg-secondary' : 'bg-orange-500'} rounded-xl flex items-center justify-center`}>
+              <i className="fas fa-graduation-cap text-white text-xl"></i>
             </div>
-          </div>
-          
-          {/* 中间搜索区域 */}
-          <div className="flex-1 max-w-md mx-8">
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="搜索项目..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={handleSearchKeyPress}
-                className={`w-full pl-10 pr-4 py-2 border border-border-light rounded-lg bg-white ${styles.searchInputFocus}`}
-              />
-              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted"></i>
+            <div>
+              {user?.role === 2 ? (
+                // 教师端格式
+                <>
+                  <h1 className="text-lg font-bold text-text-primary">河北师范大学</h1>
+                  <p className="text-xs text-text-muted">软件学院</p>
+                </>
+              ) : (
+                // 学生端格式，与学生端首页保持一致
+                <>
+                  <h1 className="text-lg font-bold text-text-primary">河北师范大学软件学院</h1>
+                  <p className="text-xs text-text-muted">软件项目通</p>
+                </>
+              )}
             </div>
           </div>
           
           {/* 右侧用户区域 */}
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2">
+            <h2 className="text-xl font-semibold text-text-primary hidden md:block">个人中心</h2>
+            <button 
+              onClick={() => navigate('/personal-center')}
+              className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors duration-200 cursor-pointer"
+              title="进入个人中心"
+            >
               <img 
                 src={userInfo.avatarUrl || "https://s.coze.cn/image/cqWetb7C3JE/"} 
                 alt="用户头像" 
-                className="w-8 h-8 rounded-full object-cover"
+                className="w-10 h-10 rounded-full object-cover border-2 border-secondary"
               />
-              <span className="text-sm font-medium text-text-primary">{userInfo.name}</span>
-              <i className="fas fa-chevron-down text-xs text-text-muted"></i>
-            </div>
+              <div className="hidden md:block">
+                <p className="text-sm font-medium text-text-primary">{userInfo.name}</p>
+                <p className="text-xs text-text-muted">计算机科学与技术系</p>
+              </div>
+            </button>
           </div>
         </div>
       </header>
 
       {/* 左侧导航栏 */}
-      <aside className={`fixed left-0 top-16 bottom-0 w-64 bg-bg-light border-r border-border-light z-40 ${styles.sidebarTransition}`}>
-        <nav className="p-4">
-          <ul className="space-y-2">
+      <aside className={`fixed left-0 top-16 bottom-0 w-64 bg-white shadow-sidebar flex-shrink-0 ${styles.sidebarTransition}`}>
+        {/* 导航菜单 */}
+        <nav className="py-4">
+          <ul>
+            {/* 根据用户角色显示不同的导航菜单 */}
+            {user?.role === 2 ? (
+              // 教师端导航
+              <>
+                <li>
+                  <Link to="/teacher-home" className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover}`}>
+                    <i className="fas fa-chart-line w-6 text-center"></i>
+                    <span className="ml-3 font-medium">数据看板</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/achievement-approval" className={`flex items-center px-6 py-3 text-secondary ${styles.sidebarItemActive}`}>
+                    <i className="fas fa-tasks w-6 text-center"></i>
+                    <span className="ml-3">成果审批</span>
+                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                      {pendingCount > 0 ? pendingCount : '0'}
+                    </span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/achievement-publish" className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover}`}>
+                    <i className="fas fa-paper-plane w-6 text-center"></i>
+                    <span className="ml-3">成果发布</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/achievement-management" className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover}`}>
+                    <i className="fas fa-cog w-6 text-center"></i>
+                    <span className="ml-3">成果管理</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/achievement-view" className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover}`}>
+                    <i className="fas fa-eye w-6 text-center"></i>
+                    <span className="ml-3">成果查看</span>
+                  </Link>
+                </li>
+              </>
+            ) : (
+              // 学生端导航
+              <>
+                <li>
+                  <Link to="/home" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
+                    <i className="fas fa-home text-lg"></i>
+                    <span className="font-medium">首页</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/project-intro" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
+                    <i className="fas fa-folder-open text-lg"></i>
+                    <span className="font-medium">成果发布</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/business-process" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
+                    <i className="fas fa-sitemap text-lg"></i>
+                    <span className="font-medium">成果管理</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/student-info" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
+                    <i className="fas fa-users text-lg"></i>
+                    <span className="font-medium">数据看板</span>
+                  </Link>
+                </li>
+              </>
+            )}
             <li>
-              <Link to="/home" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
-                <i className="fas fa-home text-lg"></i>
-                <span className="font-medium">首页</span>
-              </Link>
-            </li>
-            <li>
-              <Link to="/project-intro" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
-                <i className="fas fa-folder-open text-lg"></i>
-                <span className="font-medium">成果发布</span>
-              </Link>
-            </li>
-            <li>
-              <Link to="/business-process" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
-                <i className="fas fa-sitemap text-lg"></i>
-                <span className="font-medium">成果管理</span>
-              </Link>
-            </li>
-            <li>
-              <Link to="/student-info" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-text-primary">
-                <i className="fas fa-users text-lg"></i>
-                <span className="font-medium">数据看板</span>
-              </Link>
-            </li>
-            <li>
-              <button onClick={handleLogout} className="flex items-center space-x-3 px-4 py-3 rounded-lg text-text-secondary hover:bg-gray-50 hover:text-red-500 w-full text-left">
-                <i className="fas fa-sign-out-alt text-lg"></i>
-                <span className="font-medium">退出登录</span>
+              <button 
+                onClick={() => {
+                  logout();
+                  localStorage.removeItem('userId');
+                  localStorage.removeItem('userRole');
+                  localStorage.removeItem('username');
+                  window.location.href = '/login';
+                }}
+                className={`flex items-center px-6 py-3 text-text-secondary ${styles.sidebarItemHover} w-full text-left`}
+              >
+                <i className="fas fa-sign-out-alt w-6 text-center"></i>
+                <span className="ml-3">退出登录</span>
               </button>
             </li>
           </ul>
@@ -615,7 +687,7 @@ const PersonalCenter: React.FC = () => {
         {loading && (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <i className="fas fa-spinner fa-spin text-2xl text-orange-500 mb-2"></i>
+              <i className={`fas fa-spinner fa-spin text-2xl ${getColorTheme().loadingIcon} mb-2`}></i>
               <p className="text-text-secondary">正在加载用户信息...</p>
             </div>
           </div>
@@ -629,7 +701,7 @@ const PersonalCenter: React.FC = () => {
               <p className="text-text-secondary">无法加载用户信息</p>
               <button 
                 onClick={fetchUserProfile}
-                className="mt-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                className={`mt-2 px-4 py-2 ${getColorTheme().reloadButton} text-white rounded-lg`}
               >
                 重新加载
               </button>
@@ -644,7 +716,9 @@ const PersonalCenter: React.FC = () => {
             <div className="mb-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-text-primary mb-2">个人中心</h2>
+                  <h2 className="text-2xl font-bold text-text-primary mb-2">
+                    {userProfile?.role === 2 ? '教师个人中心' : '学生个人中心'}
+                  </h2>
                   <nav className="text-sm text-text-muted">
                     <span>首页</span>
                     <i className="fas fa-chevron-right mx-2"></i>
@@ -658,12 +732,12 @@ const PersonalCenter: React.FC = () => {
         <section className="bg-bg-light rounded-2xl shadow-card p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-text-primary flex items-center">
-              <i className="fas fa-user text-orange-500 mr-3"></i>
+              <i className={`fas fa-user ${getColorTheme().primaryIcon} mr-3`}></i>
               基本信息
             </h3>
             <button 
               onClick={handleEditToggle}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              className={`px-4 py-2 ${getColorTheme().primaryButton} text-white rounded-lg transition-colors`}
             >
               <i className={`fas ${isEditMode ? 'fa-times' : 'fa-edit'} mr-2`}></i>
               {isEditMode ? '取消' : '编辑'}
@@ -704,12 +778,14 @@ const PersonalCenter: React.FC = () => {
             </div>
             
             {/* 第二行：年级和班级 */}
-            <div className="flex items-center justify-between py-3 border-b border-border-light">
-              <span className="text-text-secondary font-medium">年级：</span>
-              <span className="text-text-primary font-semibold">
-                {userInfo.grade}
-              </span>
-            </div>
+            {user?.role !== 2 && (
+              <div className="flex items-center justify-between py-3 border-b border-border-light">
+                <span className="text-text-secondary font-medium">年级：</span>
+                <span className="text-text-primary font-semibold">
+                  {userInfo.grade}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between py-3 border-b border-border-light">
               <span className="text-text-secondary font-medium">班级：</span>
               {isEditMode ? (
@@ -745,7 +821,7 @@ const PersonalCenter: React.FC = () => {
               </button>
               <button 
                 onClick={handleSaveEdit}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                className={`px-4 py-2 ${getColorTheme().primaryButton} text-white rounded-lg`}
               >
                 <i className="fas fa-save mr-2"></i>
                 保存
@@ -757,7 +833,7 @@ const PersonalCenter: React.FC = () => {
         {/* 安全设置模块 */}
         <section className="bg-bg-light rounded-2xl shadow-card p-6">
           <h3 className="text-xl font-bold text-text-primary mb-6 flex items-center">
-            <i className="fas fa-cog text-orange-500 mr-3"></i>
+            <i className={`fas fa-cog ${getColorTheme().primaryIcon} mr-3`}></i>
             安全设置
           </h3>
           
@@ -770,7 +846,7 @@ const PersonalCenter: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <i className="fas fa-key text-orange-500"></i>
+                    <i className={`fas fa-key ${getColorTheme().primaryIcon}`}></i>
                     <span className="font-medium text-text-primary">修改密码</span>
                   </div>
                   <i className="fas fa-chevron-right text-text-muted"></i>
@@ -783,7 +859,7 @@ const PersonalCenter: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <i className="fas fa-envelope text-orange-500"></i>
+                    <i className={`fas fa-envelope ${getColorTheme().primaryIcon}`}></i>
                     <span className="font-medium text-text-primary">修改邮箱</span>
                   </div>
                   <i className="fas fa-chevron-right text-text-muted"></i>
@@ -874,7 +950,7 @@ const PersonalCenter: React.FC = () => {
                   </button>
                   <button 
                     type="submit" 
-                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                    className="flex-1 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-accent"
                   >
                     确认修改
                   </button>

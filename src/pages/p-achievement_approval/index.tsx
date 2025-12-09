@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AchievementService } from '../../lib/achievementService';
 import { AchievementWithUsers, AchievementStatus, ApprovalFilters, AchievementType } from '../../types/achievement';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +11,7 @@ import styles from './styles.module.css';
 const AchievementApprovalPage: React.FC = () => {
   const { user } = useAuth();
   const { pendingCount, refreshPendingCount } = useApproval();
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(user);
   
   // 获取当前教师ID
@@ -229,6 +230,10 @@ const AchievementApprovalPage: React.FC = () => {
   const handleCancelReject = () => {
     setShowRejectModal(false);
     setRejectReason('');
+  };
+
+  const handleProfileClick = () => {
+    navigate('/personal-center');
   };
   
   // 确认驳回
@@ -485,8 +490,11 @@ const AchievementApprovalPage: React.FC = () => {
               
               {/* 用户信息 */}
               <div className="flex items-center space-x-4">
-
-                <div className="flex items-center space-x-3">
+                <button 
+                  onClick={handleProfileClick}
+                  className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors duration-200 cursor-pointer"
+                  title="进入个人中心"
+                >
                   <img 
                     src="https://s.coze.cn/image/W9aKtpJZs9s/" 
                     alt="教师头像" 
@@ -496,7 +504,7 @@ const AchievementApprovalPage: React.FC = () => {
                     <p className="text-sm font-medium text-text-primary">{user?.full_name || '教师'}</p>
                     <p className="text-xs text-text-muted">计算机科学与技术系</p>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
           </header>
