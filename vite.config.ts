@@ -11,5 +11,5 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       path: '/ws',
     }
-  },
+  }
 }));

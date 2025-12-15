@@ -40,7 +40,7 @@ export class StatisticsService {
         .select(`
           score, 
           status, 
-          achievement_types!achievements_type_id_fkey(name), 
+          achievement_types(name), 
           created_at
         `)
         .eq('publisher_id', userId);

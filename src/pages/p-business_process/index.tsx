@@ -97,7 +97,7 @@ const BusinessProcessPage: React.FC = () => {
           achievement_id,
           feedback,
           reviewed_at,
-          reviewer:users!approval_records_reviewer_id_fkey (username)
+          reviewer:users!reviewer_id (username)
         `)
         .in('achievement_id', achievementIds)
         .order('reviewed_at', { ascending: false });

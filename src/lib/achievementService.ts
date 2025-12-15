@@ -180,8 +180,8 @@ export class AchievementService {
           .from('achievements')
           .select(`
             *,
-            achievement_types!achievements_type_id_fkey (name),
-            users!achievements_publisher_id_fkey (username, email)
+            achievement_types (name),
+            publisher:users!publisher_id (username, email)
           `)
           .eq('publisher_id', userId);
       } else if (userRole === 2) {
@@ -204,9 +204,9 @@ export class AchievementService {
           .from('achievements')
           .select(`
             *,
-            achievement_types!achievements_type_id_fkey (name),
-            users!achievements_publisher_id_fkey (username, email, full_name),
-            instructor:users!achievements_instructor_id_fkey (username, email, full_name)
+            achievement_types (name),
+            publisher:users!publisher_id (username, email, full_name),
+            instructor:users!instructor_id (username, email, full_name)
           `)
           .in('publisher_id', studentIds)
           .order('created_at', { ascending: false });
@@ -217,9 +217,9 @@ export class AchievementService {
           .from('achievements')
           .select(`
             *,
-            achievement_types!achievements_type_id_fkey (name),
-            users!achievements_publisher_id_fkey (username, email),
-            instructor:users!achievements_instructor_id_fkey (username, email)
+            achievement_types (name),
+            publisher:users!publisher_id (username, email),
+            instructor:users!instructor_id (username, email)
           `)
           .order('created_at', { ascending: false });
       }
@@ -261,8 +261,8 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          achievement_types!achievements_type_id_fkey (name),
-          users!achievements_publisher_id_fkey (username, email, full_name)
+          achievement_types (name),
+          publisher:users!publisher_id (username, email, full_name)
         `)
         .eq('publisher_id', userId)
         .order('created_at', { ascending: false });
@@ -341,9 +341,9 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          achievement_types!achievements_type_id_fkey (name),
-          publisher:users!achievements_publisher_id_fkey (username, email),
-          instructor:users!achievements_instructor_id_fkey (username, email)
+          achievement_types (name),
+          publisher:users!publisher_id (username, email),
+          instructor:users!instructor_id (username, email)
         `)
         .eq('id', id)
         .single();
@@ -727,22 +727,22 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          publisher:users!achievements_publisher_id_fkey (
+          publisher:users!publisher_id (
             id,
             username,
             email
           ),
-          instructor:users!achievements_instructor_id_fkey (
+          instructor:users!instructor_id (
             id,
             username,
             email
           ),
-          parent:users!achievements_parents_id_fkey (
+          parent:users!parents_id (
             id,
             username,
             email
           ),
-          achievement_type:achievement_types!achievements_type_id_fkey (
+          achievement_type:achievement_types (
             id,
             name
           )
@@ -801,26 +801,26 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          publisher:users!achievements_publisher_id_fkey (
+          publisher:users!publisher_id (
             id,
             username,
             email,
             full_name,
             class_id
           ),
-          instructor:users!achievements_instructor_id_fkey (
+          instructor:users!instructor_id (
             id,
             username,
             email,
             full_name
           ),
-          parent:users!achievements_parents_id_fkey (
+          parent:users!parents_id (
             id,
             username,
             email,
             full_name
           ),
-          achievement_type:achievement_types!achievements_type_id_fkey (
+          achievement_type:achievement_types (
             id,
             name
           )
@@ -1050,9 +1050,9 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          achievement_types!achievements_type_id_fkey (name),
-          users!achievements_publisher_id_fkey (username, email, full_name, role),
-          instructor:users!achievements_instructor_id_fkey (username, email, full_name, role)
+          achievement_types (name),
+          publisher:users!publisher_id (username, email, full_name, role),
+          instructor:users!instructor_id (username, email, full_name, role)
         `)
         .order('created_at', { ascending: false });
 
@@ -1083,23 +1083,23 @@ export class AchievementService {
         .from('achievements')
         .select(`
           *,
-          publisher:users!achievements_publisher_id_fkey (
+          publisher:users!publisher_id (
             id,
             username,
             email,
             class_id
           ),
-          instructor:users!achievements_instructor_id_fkey (
+          instructor:users!instructor_id (
             id,
             username,
             email
           ),
-          parent:users!achievements_parents_id_fkey (
+          parent:users!parents_id (
             id,
             username,
             email
           ),
-          achievement_type:achievement_types!achievements_type_id_fkey (
+          achievement_type:achievement_types (
             id,
             name
           )
@@ -1152,7 +1152,7 @@ export class AchievementService {
         .select(`
           feedback,
           reviewed_at,
-          reviewer:users!approval_records_reviewer_id_fkey (username)
+          reviewer:users!reviewer_id (username)
         `)
         .eq('achievement_id', achievementId)
         .order('reviewed_at', { ascending: false })
