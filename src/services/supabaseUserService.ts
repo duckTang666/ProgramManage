@@ -331,6 +331,7 @@ export const createClass = async (className: string, gradeId: string, instructor
 // 添加用户
 export const addUser = async (userData: {
   username: string;
+  student_id?: string;
   full_name: string;
   email: string;
   password: string;
@@ -342,6 +343,7 @@ export const addUser = async (userData: {
       .from('users')
       .insert({
         username: userData.username,
+        student_id: userData.student_id || null,
         full_name: userData.full_name,
         email: userData.email,
         password_hash: userData.password,
@@ -588,6 +590,76 @@ export const getAllClassesForSwitchFallback = async (): Promise<any[]> => {
     return classesWithGrades;
   } catch (error) {
     console.error('备选方案获取班级异常:', error);
+    throw error;
+  }
+};
+
+// 根据班级名称查找或创建班级
+export const findOrCreateClass = async (className: string): Promise<string> => {
+  try {
+    // 先查找是否已存在该班级
+    const { data: existingClass, error: findError } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('name', className)
+      .single();
+
+    if (!findError && existingClass) {
+      console.log(`班级已存在: ${className}`);
+      return existingClass.id;
+    }
+
+    // 从班级名称中提取年份（前4位数字）
+    const yearMatch = className.match(/^(\d{4})/);
+    if (!yearMatch) {
+      throw new Error(`班级名称格式不正确，无法提取年份: ${className}`);
+    }
+    
+    const year = yearMatch[1];
+    const gradeName = `${year}级`;
+
+    // 查找或创建年级
+    let { data: grade, error: gradeError } = await supabase
+      .from('grades')
+      .select('id')
+      .eq('name', gradeName)
+      .single();
+
+    if (gradeError || !grade) {
+      // 年级不存在，创建新年级
+      console.log(`创建新年级: ${gradeName}`);
+      const { data: newGrade, error: createGradeError } = await supabase
+        .from('grades')
+        .insert({ name: gradeName })
+        .select('id')
+        .single();
+
+      if (createGradeError) {
+        console.error('创建年级失败:', createGradeError);
+        throw createGradeError;
+      }
+      grade = newGrade;
+    }
+
+    // 创建新班级
+    console.log(`创建新班级: ${className}`);
+    const { data: newClass, error: createClassError } = await supabase
+      .from('classes')
+      .insert({
+        name: className,
+        grade_id: grade.id
+      })
+      .select('id')
+      .single();
+
+    if (createClassError) {
+      console.error('创建班级失败:', createClassError);
+      throw createClassError;
+    }
+
+    return newClass.id;
+  } catch (error) {
+    console.error('查找或创建班级失败:', error);
     throw error;
   }
 };

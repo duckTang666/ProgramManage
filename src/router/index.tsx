@@ -24,6 +24,10 @@ import P_admin_home from '../pages/p-admin_home';
 import P_news_management from '../pages/p-news_management';
 import P_achievement_library_management from '../pages/p-achievement_library_management';
 import P_knowledge_base_management from '../pages/p-knowledge_base_management';
+import P_frontend_docs_view from '../pages/p-frontend_docs_view';
+import P_backend_docs_view from '../pages/p-backend_docs_view';
+import P_achievement_summaries_view from '../pages/p-achievement_summaries_view';
+import P_organization_view from '../pages/p-organization_view';
 import P_carousel_management from '../pages/p-carousel_management';
 import P_user_management from '../pages/p-user_management';
 import P_image_upload_demo from '../pages/p-image-upload-demo';
@@ -253,6 +257,42 @@ const router = createBrowserRouter([
     element: (
       <ErrorBoundary>
         <P_knowledge_base_management />
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorPage />,
+  },
+      {
+    path: '/frontend-docs-view',
+    element: (
+      <ErrorBoundary>
+        <P_frontend_docs_view />
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorPage />,
+  },
+      {
+    path: '/backend-docs-view',
+    element: (
+      <ErrorBoundary>
+        <P_backend_docs_view />
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorPage />,
+  },
+      {
+    path: '/achievement-summaries-view',
+    element: (
+      <ErrorBoundary>
+        <P_achievement_summaries_view />
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorPage />,
+  },
+      {
+    path: '/organization-view',
+    element: (
+      <ErrorBoundary>
+        <P_organization_view />
       </ErrorBoundary>
     ),
     errorElement: <ErrorPage />,

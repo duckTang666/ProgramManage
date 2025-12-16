@@ -1,0 +1,52 @@
+.pageWrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebarItem {
+  transition: all 0.3s ease;
+}
+
+.sidebarItem:hover {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+.sidebarItemActive {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #16a34a !important;
+  border-left: 3px solid #16a34a;
+}
+
+.knowledgeCard {
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.cardHover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

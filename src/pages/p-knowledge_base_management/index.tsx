@@ -38,13 +38,23 @@ const KnowledgeBaseManagement: React.FC = () => {
   };
 
   const handleKnowledgeCategoryClick = (categoryId: string) => {
-    console.log('查看知识库分类: ' + categoryId);
-    // 在实际应用中，这里会跳转到相应的分类页面
+    switch (categoryId) {
+      case 'frontend-docs':
+        navigate('/frontend-docs-view');
+        break;
+      case 'backend-docs':
+        navigate('/backend-docs-view');
+        break;
+      case 'achievement-summaries':
+        navigate('/achievement-summaries-view');
+        break;
+      default:
+        console.log('查看知识库分类: ' + categoryId);
+    }
   };
 
   const handleOrganizationClick = (sectionId: string) => {
-    console.log('查看组织架构: ' + sectionId);
-    // 在实际应用中，这里会跳转到相应的组织架构页面
+    navigate('/organization-view');
   };
 
   const handleViewAllUpdates = () => {

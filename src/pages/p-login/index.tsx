@@ -403,7 +403,8 @@ const LoginPage: React.FC = () => {
             </Link>
           </div>
           
-          {/* 注册链接 */}
+          {/* 注册链接 - 已隐藏 */}
+          {/*
           <div className="mt-4 text-center">
             <p className="text-sm text-text-secondary">
               还没有账号？
@@ -415,6 +416,7 @@ const LoginPage: React.FC = () => {
               </Link>
             </p>
           </div>
+          */}
         </div>
 
         {/* 版权信息 */}

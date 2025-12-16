@@ -1,9 +1,10 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './styles.module.css';
+import * as XLSX from 'xlsx';
 import { 
   buildOrganizationTree, 
   getUsers, 
@@ -18,6 +19,7 @@ import {
   addUser,
   searchUsers,
   getGrades,
+  findOrCreateClass,
   OrgTreeNode, 
   User,
   getRoleName,
@@ -204,6 +206,9 @@ const UserManagement: React.FC = () => {
     return 'active';
   };
 
+  // 搜索相关状态
+  const [searchUsersList, setSearchUsersList] = useState<User[]>([]);
+
   // 对用户列表进行排序：管理员(3) → 教师(2) → 学生(1)
   const sortedUsersList = [...usersList].sort((a, b) => {
     // 按role降序排列（3 > 2 > 1）
@@ -250,8 +255,10 @@ const UserManagement: React.FC = () => {
 
   // 添加用户相关状态
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [userTypeStep, setUserTypeStep] = useState(true); // 第一步选择类型，第二步填写信息
   const [newUser, setNewUser] = useState({
     username: '',
+    student_id: '',
     full_name: '',
     email: '',
     password: '',
@@ -261,9 +268,21 @@ const UserManagement: React.FC = () => {
   const [loadingAddUser, setLoadingAddUser] = useState(false);
   const [classesForUser, setClassesForUser] = useState<any[]>([]);
 
-  // 搜索相关状态
-  const [searchUsersList, setSearchUsersList] = useState<User[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
+
+  // Excel导入相关状态
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 用户操作相关状态
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [showUserDetailModal, setShowUserDetailModal] = useState(false);
+  const [selectedUserForAction, setSelectedUserForAction] = useState<User | null>(null);
+  const [loadingUserAction, setLoadingUserAction] = useState(false);
 
   // 初始化搜索数据
   useEffect(() => {
@@ -277,14 +296,281 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // 打开编辑用户弹窗
+  const handleEditUser = (user: User) => {
+    setSelectedUserForAction(user);
+    setShowEditUserModal(true);
+  };
+
+  // 打开重置密码弹窗
+  const handleResetPassword = (user: User) => {
+    setSelectedUserForAction(user);
+    setShowResetPasswordModal(true);
+  };
+
+  // 打开用户详情弹窗
+  const handleViewUserDetail = (user: User) => {
+    setSelectedUserForAction(user);
+    setShowUserDetailModal(true);
+  };
+
 
 
   const handleImportUsers = () => {
-    console.log('导入用户');
+    setShowImportModal(true);
+    setImportFile(null);
+    setImportPreview([]);
+  };
+
+  // 处理文件选择
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                 file.type === 'application/vnd.ms-excel' || 
+                 file.name.endsWith('.xlsx') || 
+                 file.name.endsWith('.xls'))) {
+      setImportFile(file);
+      readExcelFile(file);
+    } else {
+      alert('请选择有效的Excel文件（.xlsx或.xls）');
+    }
+  };
+
+  // 读取Excel文件
+  const readExcelFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        // 处理数据，确保字段名正确且为字符串类型
+        const processedData = jsonData.map((row: any) => {
+          // 处理用户名/学号/工号，确保转换为字符串
+          let username = '';
+          let studentId = '';
+          
+          if (row['学号']) {
+            username = String(row['学号']);
+            studentId = String(row['学号']);
+          } else if (row['工号']) {
+            username = String(row['工号']);
+          } else if (row['用户名']) {
+            username = String(row['用户名']);
+          } else if (row['username']) {
+            username = String(row['username']);
+          }
+          
+          // 处理邮箱，如果为空则根据学号/工号自动生成
+          let email = row['邮箱'] || row['email'] || '';
+          if (!email && username) {
+            email = `${username}@hbsd.com`;
+          }
+          email = String(email);
+          
+          return {
+            username: username,
+            student_id: studentId,
+            full_name: String(row['姓名'] || row['full_name'] || row['真实姓名'] || ''),
+            email: email,
+            password: String(row['密码'] || row['password'] || '123456'),
+            role: getRoleFromText(String(row['角色'] || row['role'] || '学生')),
+            class_id: ''
+          };
+        });
+
+        setImportPreview(processedData);
+      } catch (error) {
+        console.error('读取Excel文件失败:', error);
+        alert('读取Excel文件失败，请检查文件格式');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // 从文本获取角色数字
+  const getRoleFromText = (roleText: string): number => {
+    const role = roleText.toLowerCase().trim();
+    switch (role) {
+      case '学生':
+      case 'student':
+        return 1;
+      case '教师':
+      case '老师':
+      case 'teacher':
+        return 2;
+      case '管理员':
+      case 'admin':
+        return 3;
+      default:
+        return 1; // 默认为学生
+    }
+  };
+
+  // 执行导入
+  const handleExecuteImport = async () => {
+    if (importPreview.length === 0) {
+      alert('没有可导入的数据');
+      return;
+    }
+
+    if (!confirm(`确定要导入 ${importPreview.length} 个用户吗？`)) {
+      return;
+    }
+
+    try {
+      setImporting(true);
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const user of importPreview) {
+        // 确保所有字段都是字符串类型，声明在try块外部以便在catch中访问
+        const username = String(user.username || '');
+        const fullName = String(user.full_name || '');
+        const email = String(user.email || '');
+        const password = String(user.password || '');
+        const studentId = user.student_id ? String(user.student_id) : '';
+        
+        try {
+          // 验证必填字段
+          if (!username.trim()) {
+            throw new Error(user.role === 1 ? '学号不能为空' : '工号不能为空');
+          }
+          if (!fullName.trim()) {
+            throw new Error('姓名不能为空');
+          }
+          if (!email.trim()) {
+            throw new Error('邮箱不能为空');
+          }
+          if (!password.trim()) {
+            throw new Error('密码不能为空');
+          }
+          
+          // 验证学号格式（学生）
+          if (user.role === 1 && studentId) {
+            if (!/^\d{10}$/.test(studentId.trim())) {
+              throw new Error('学号格式不正确，应为10位数字，如2023015559');
+            }
+          }
+          
+          const success = await addUser({
+            username: username.trim(),
+            student_id: studentId?.trim() || undefined,
+            full_name: fullName.trim(),
+            email: email.trim(),
+            password: password.trim(),
+            role: user.role,
+            class_id: undefined
+          });
+
+          if (success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errors.push(`用户 ${username} 导入失败`);
+          }
+        } catch (error) {
+          errorCount++;
+          errors.push(`用户 ${username}: ${error}`);
+        }
+      }
+
+      alert(`导入完成！成功：${successCount}，失败：${errorCount}${errors.length > 0 ? '\n\n失败详情：\n' + errors.slice(0, 5).join('\n') : ''}`);
+      
+      if (successCount > 0) {
+        // 刷新数据
+        fetchData();
+        // 关闭弹窗
+        handleCloseImportModal();
+      }
+    } catch (error) {
+      console.error('导入失败:', error);
+      alert('导入失败，请稍后重试');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // 关闭导入弹窗
+  const handleCloseImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPreview([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 下载导入模板
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        '学号': '2023010001',
+        '姓名': '张三',
+        '邮箱': '2023010001@hbsd.com',
+        '密码': '123456',
+        '角色': '学生'
+      },
+      {
+        '学号': '2023010002',
+        '姓名': '李四',
+        '邮箱': '2023010002@hbsd.com',
+        '密码': '123456',
+        '角色': '学生'
+      },
+      {
+        '工号': 'T2023001',
+        '姓名': '王老师',
+        '邮箱': 'T2023001@hbsd.com',
+        '密码': '123456',
+        '角色': '教师'
+      },
+      {
+        '工号': 'T2023002',
+        '姓名': '赵老师',
+        '邮箱': 'T2023002@hbsd.com',
+        '密码': '123456',
+        '角色': '教师'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '用户导入模板');
+    XLSX.writeFile(workbook, '用户导入模板.xlsx');
   };
 
   const handleExportUsers = () => {
-    console.log('导出用户');
+    try {
+      // 准备导出数据
+      const exportData = usersList.map(user => ({
+        '用户名': user.username,
+        '姓名': user.full_name || '',
+        '邮箱': user.email,
+        '角色': getRoleName(user.role),
+        '班级': getClassName(user.class_id || ''),
+        '创建时间': user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '',
+        '状态': getUserStatus(user) === 'active' ? '活跃' : '未激活'
+      }));
+
+      // 创建工作簿
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, '用户数据');
+
+      // 生成文件名
+      const fileName = `用户数据_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+      
+      // 下载文件
+      XLSX.writeFile(workbook, fileName);
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert('导出失败，请稍后重试');
+    }
   };
 
   const handleUserProfileClick = () => {
@@ -538,16 +824,19 @@ const UserManagement: React.FC = () => {
   const handleOpenAddUserModal = async () => {
     try {
       setLoadingAddUser(true);
+      console.log('开始获取班级和教师数据...');
       const [classList, teachers] = await Promise.all([
         getClasses(),
         getUsers().then(users => users.filter(u => u.role === 2)) // 获取教师
       ]);
+      console.log('获取到的班级列表:', classList);
+      console.log('获取到的教师列表:', teachers);
       setClassesForUser(classList);
       setTeachersForInstructor(teachers);
       setShowAddUserModal(true);
     } catch (error) {
       console.error('获取班级和教师数据失败:', error);
-      alert('获取数据失败，请稍后重试');
+      alert('获取数据失败，请稍后重试: ' + error.message);
     } finally {
       setLoadingAddUser(false);
     }
@@ -556,8 +845,10 @@ const UserManagement: React.FC = () => {
   // 关闭添加用户弹窗
   const handleCloseAddUserModal = () => {
     setShowAddUserModal(false);
+    setUserTypeStep(true);
     setNewUser({
       username: '',
+      student_id: '',
       full_name: '',
       email: '',
       password: '',
@@ -568,16 +859,45 @@ const UserManagement: React.FC = () => {
 
   // 添加用户
   const handleAddUser = async () => {
-    if (!newUser.username.trim()) {
-      alert('请输入用户名');
-      return;
+    // 根据用户类型进行不同的验证
+    if (newUser.role === 1) {
+      // 学生验证
+      if (!newUser.full_name.trim()) {
+        alert('请输入学生姓名');
+        return;
+      }
+
+      if (!newUser.class_id) {
+        alert('请选择班级');
+        return;
+      }
+
+      // 如果没有自动生成学号，生成一个
+      if (!newUser.username.trim()) {
+        const timestamp = Date.now().toString().slice(-6);
+        const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const username = `stu${timestamp}${randomNum}`;
+        setNewUser({
+          ...newUser,
+          username,
+          email: `${username}@hbsd.com`
+        });
+        return; // 生成后再提交
+      }
+    } else {
+      // 教师/管理员验证
+      if (!newUser.username.trim()) {
+        alert('请输入用户名');
+        return;
+      }
+
+      if (!newUser.full_name.trim()) {
+        alert('请输入姓名');
+        return;
+      }
     }
 
-    if (!newUser.full_name.trim()) {
-      alert('请输入姓名');
-      return;
-    }
-
+    // 通用验证
     if (!newUser.email.trim()) {
       alert('请输入邮箱');
       return;
@@ -589,6 +909,15 @@ const UserManagement: React.FC = () => {
     }
 
     try {
+      console.log('正在添加用户:', {
+        username: newUser.username.trim(),
+        full_name: newUser.full_name.trim(),
+        email: newUser.email.trim(),
+        password: newUser.password,
+        role: newUser.role,
+        class_id: newUser.class_id || undefined
+      });
+
       const success = await addUser({
         username: newUser.username.trim(),
         full_name: newUser.full_name.trim(),
@@ -602,10 +931,12 @@ const UserManagement: React.FC = () => {
         alert('用户添加成功');
         handleCloseAddUserModal();
         fetchData(); // 刷新数据
+      } else {
+        alert('用户添加失败，请检查信息是否正确');
       }
     } catch (error) {
       console.error('添加用户失败:', error);
-      alert('添加用户失败，请稍后重试');
+      alert('添加用户失败：' + (error.message || '请稍后重试'));
     }
   };
 
@@ -761,14 +1092,14 @@ const UserManagement: React.FC = () => {
           <div className={`flex flex-wrap gap-3 mb-6 ${styles.fadeIn}`} style={{animationDelay: '0.1s'}}>
             <button 
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              onClick={handleCreateClass}
+              onClick={() => alert('该功能正在开发中')}
             >
               <i className="fas fa-plus mr-2"></i>
               <span>创建班级</span>
             </button>
             <button 
               className="flex items-center px-4 py-2 bg-white border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition-colors"
-              onClick={handleAddUser}
+              onClick={handleOpenAddUserModal}
             >
               <i className="fas fa-user-plus mr-2"></i>
               <span>添加用户</span>
@@ -930,23 +1261,43 @@ const UserManagement: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex justify-center space-x-2">
-                            <button className="text-green-600 hover:text-green-700" title="编辑">
+                            <button 
+                              className="text-green-600 hover:text-green-700" 
+                              title="编辑"
+                              onClick={() => handleEditUser(user)}
+                            >
                               <i className="fas fa-edit"></i>
                             </button>
                             {user.role === 2 && (
-                              <button className="text-green-600 hover:text-green-700" title="管理班级">
+                              <button 
+                                className="text-green-600 hover:text-green-700" 
+                                title="管理班级"
+                                onClick={() => alert('管理班级功能正在开发中')}
+                              >
                                 <i className="fas fa-users-cog"></i>
                               </button>
                             )}
                             {user.role === 1 && (
-                              <button className="text-green-600 hover:text-green-700" title="调整班级">
+                              <button 
+                                className="text-green-600 hover:text-green-700" 
+                                title="调整班级"
+                                onClick={() => handleOpenSwitchClassModal(user)}
+                              >
                                 <i className="fas fa-exchange-alt"></i>
                               </button>
                             )}
-                            <button className="text-gray-500 hover:text-gray-700" title="重置密码">
+                            <button 
+                              className="text-gray-500 hover:text-gray-700" 
+                              title="重置密码"
+                              onClick={() => handleResetPassword(user)}
+                            >
                               <i className="fas fa-key"></i>
                             </button>
-                            <button className="text-gray-500 hover:text-gray-700" title="查看详情">
+                            <button 
+                              className="text-gray-500 hover:text-gray-700" 
+                              title="查看详情"
+                              onClick={() => handleViewUserDetail(user)}
+                            >
                               <i className="fas fa-eye"></i>
                             </button>
                           </div>
@@ -1311,9 +1662,387 @@ const UserManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">添加用户</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {userTypeStep ? '选择用户类型' : `添加${newUser.role === 1 ? '学生' : newUser.role === 2 ? '教师' : '管理员'}`}
+              </h3>
               <button 
                 onClick={handleCloseAddUserModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            {userTypeStep ? (
+              // 第一步：选择用户类型
+              <div className="space-y-3">
+                <button 
+                  className="w-full p-4 rounded-lg border-2 border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-left"
+                  onClick={() => {
+                    setNewUser({
+                      ...newUser, 
+                      role: 1, 
+                      password: '123456'
+                    });
+                    setUserTypeStep(false);
+                  }}
+                >
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                      <i className="fas fa-user-graduate text-green-600 text-xl"></i>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">添加学生</div>
+                      <div className="text-sm text-gray-500">只需填写姓名和选择班级，学号和邮箱自动生成</div>
+                    </div>
+                  </div>
+                </button>
+                
+                <button 
+                  className="w-full p-4 rounded-lg border-2 border-gray-200 hover:border-blue-600 hover:bg-blue-50 transition-all text-left"
+                  onClick={() => {
+                    setNewUser({
+                      ...newUser, 
+                      role: 2, 
+                      password: '123456'
+                    });
+                    setUserTypeStep(false);
+                  }}
+                >
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                      <i className="fas fa-chalkboard-teacher text-blue-600 text-xl"></i>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">添加教师</div>
+                      <div className="text-sm text-gray-500">填写基本信息，邮箱和密码可自定义</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            ) : (
+              // 第二步：填写具体信息
+              <div className="space-y-4">
+                {newUser.role === 1 ? (
+                  // 学生表单 - 简化版
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        学号 <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="text"
+                        value={newUser.student_id}
+                        onChange={(e) => {
+                          const studentId = e.target.value.replace(/\D/g, ''); // 只允许数字
+                          setNewUser({
+                            ...newUser, 
+                            student_id: studentId,
+                            username: studentId,
+                            email: studentId ? `${studentId}@hbsd.com` : ''
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="请输入学号，如：2023015559"
+                        maxLength={10}
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        学号格式：如 2023015559
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        姓名 <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="text"
+                        value={newUser.full_name}
+                        onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="请输入学生姓名"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        分配班级 <span className="text-red-500">*</span>
+                      </label>
+                      <select 
+                        value={newUser.class_id}
+                        onChange={(e) => setNewUser({...newUser, class_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="">请选择班级</option>
+                        {classesForUser.map(cls => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* 显示自动生成的信息 */}
+                    <div className="bg-gray-50 p-3 rounded-lg space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">学号：</span>
+                        <span className="font-medium">{newUser.student_id || '请输入学号'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">邮箱：</span>
+                        <span className="font-medium">{newUser.email || '自动生成'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">密码：</span>
+                        <span className="font-medium">123456</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // 教师表单 - 完整版
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        教师工号 <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="text"
+                        value={newUser.username}
+                        onChange={(e) => {
+                          const username = e.target.value;
+                          setNewUser({
+                            ...newUser, 
+                            username,
+                            email: username ? `${username}@hbsd.com` : newUser.email
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="请输入教师工号"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        姓名 <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="text"
+                        value={newUser.full_name}
+                        onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="请输入教师姓名"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        邮箱
+                      </label>
+                      <input 
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="请输入邮箱"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        留空将自动生成：工号@hbsd.com
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        分配班级
+                      </label>
+                      <select 
+                        value={newUser.class_id}
+                        onChange={(e) => setNewUser({...newUser, class_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">请选择班级</option>
+                        {classesForUser.map(cls => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">默认密码：</span>
+                        <span className="font-medium">123456</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              {userTypeStep ? (
+                <>
+                  <button 
+                    onClick={handleCloseAddUserModal}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    取消
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setUserTypeStep(true)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    返回
+                  </button>
+                  <button 
+                    onClick={handleAddUser}
+                    disabled={loadingAddUser || (newUser.role === 1 && (!newUser.student_id || !newUser.full_name || !newUser.class_id))}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingAddUser ? '添加中...' : '确认添加'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Excel导入弹窗 */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Excel批量导入用户</h3>
+              <button 
+                onClick={handleCloseImportModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              <div className="mb-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 mb-2">导入说明：</h4>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• <strong>学生</strong>：学号、姓名、邮箱、密码、角色</li>
+                    <li>• <strong>教师</strong>：工号、姓名、邮箱、密码、角色</li>
+                    <li>• 角色可选：学生、教师、管理员</li>
+                    <li>• 密码为初始密码，默认123456，用户登录后可自行修改</li>
+                    <li>• 邮箱留空将自动生成：学号@hbsd.com 或 工号@hbsd.com</li>
+                    <li>• <strong>不需要填写班级，系统会自动处理</strong></li>
+                  </ul>
+                  <button 
+                    onClick={handleDownloadTemplate}
+                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    <i className="fas fa-download mr-2"></i>
+                    下载导入模板
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择Excel文件
+                </label>
+                <input 
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+
+              {importPreview.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">
+                    预览数据（共{importPreview.length}条）
+                  </h4>
+                  <div className="overflow-x-auto max-h-60 border border-gray-200 rounded">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-1 border-b text-left">用户名</th>
+                          <th className="px-2 py-1 border-b text-left">姓名</th>
+                          <th className="px-2 py-1 border-b text-left">邮箱</th>
+                          <th className="px-2 py-1 border-b text-left">密码</th>
+                          <th className="px-2 py-1 border-b text-left">角色</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreview.slice(0, 10).map((user, index) => (
+                          <tr key={index} className="border-b">
+                            <td className="px-2 py-1">{user.username}</td>
+                            <td className="px-2 py-1">{user.full_name}</td>
+                            <td className="px-2 py-1">{user.email}</td>
+                            <td className="px-2 py-1">•••••••</td>
+                            <td className="px-2 py-1">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                user.role === 1 ? 'bg-green-100 text-green-800' :
+                                user.role === 2 ? 'bg-blue-100 text-blue-800' :
+                                'bg-purple-100 text-purple-800'
+                              }`}>
+                                {user.role === 1 ? '学生' : user.role === 2 ? '教师' : '管理员'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importPreview.length > 10 && (
+                      <div className="text-center py-2 text-sm text-gray-500">
+                        ...还有 {importPreview.length - 10} 条数据
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button 
+                onClick={handleCloseImportModal}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleExecuteImport}
+                disabled={importPreview.length === 0 || importing}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    导入中...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-file-import mr-2"></i>
+                    确认导入 ({importPreview.length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 编辑用户弹窗 */}
+      {showEditUserModal && selectedUserForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">编辑用户</h3>
+              <button 
+                onClick={() => setShowEditUserModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <i className="fas fa-times"></i>
@@ -1323,14 +2052,13 @@ const UserManagement: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  用户名
+                  用户名/学号
                 </label>
                 <input 
                   type="text"
-                  value={newUser.username}
-                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="请输入用户名"
+                  value={selectedUserForAction.username}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
                 />
               </div>
               
@@ -1340,10 +2068,8 @@ const UserManagement: React.FC = () => {
                 </label>
                 <input 
                   type="text"
-                  value={newUser.full_name}
-                  onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                  defaultValue={selectedUserForAction.full_name}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="请输入真实姓名"
                 />
               </div>
               
@@ -1353,73 +2079,160 @@ const UserManagement: React.FC = () => {
                 </label>
                 <input 
                   type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  defaultValue={selectedUserForAction.email}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="请输入邮箱"
                 />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  密码
-                </label>
-                <input 
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="请输入密码"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  角色
-                </label>
-                <select 
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({...newUser, role: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value={1}>学生</option>
-                  <option value={2}>教师</option>
-                  <option value={3}>管理员</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  分配班级
-                </label>
-                <select 
-                  value={newUser.class_id}
-                  onChange={(e) => setNewUser({...newUser, class_id: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">请选择班级</option>
-                  {classesForUser.map(cls => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
             
             <div className="flex justify-end space-x-3 pt-4 border-t">
               <button 
-                onClick={handleCloseAddUserModal}
+                onClick={() => setShowEditUserModal(false)}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
               >
                 取消
               </button>
               <button 
-                onClick={handleAddUser}
-                disabled={loadingAddUser}
+                onClick={() => {
+                  alert('编辑功能正在开发中');
+                  setShowEditUserModal(false);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                保存修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 重置密码弹窗 */}
+      {showResetPasswordModal && selectedUserForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">重置密码</h3>
+              <button 
+                onClick={() => setShowResetPasswordModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <i className="fas fa-user text-blue-500 mr-3"></i>
+                  <div>
+                    <div className="font-medium">{selectedUserForAction.full_name || selectedUserForAction.username}</div>
+                    <div className="text-sm text-gray-500">{selectedUserForAction.email}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  新密码
+                </label>
+                <input 
+                  type="password"
+                  defaultValue="123456"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+                <div className="text-sm text-gray-500 mt-1">
+                  默认密码：123456，用户登录后可自行修改
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button 
+                onClick={() => setShowResetPasswordModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                取消
+              </button>
+              <button 
+                onClick={() => {
+                  alert('重置密码功能正在开发中');
+                  setShowResetPasswordModal(false);
+                }}
+                disabled={loadingUserAction}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loadingAddUser ? '添加中...' : '添加用户'}
+                {loadingUserAction ? '重置中...' : '确认重置'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 查看用户详情弹窗 */}
+      {showUserDetailModal && selectedUserForAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">用户详情</h3>
+              <button 
+                onClick={() => setShowUserDetailModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className={`w-16 h-16 ${getUserIconClass(selectedUserForAction.role).split(' ').slice(0, 3).join(' ')} rounded-full flex items-center justify-center`}>
+                  <i className={getUserIconClass(selectedUserForAction.role).split(' ')[0]}></i>
+                </div>
+                <div>
+                  <div className="text-lg font-medium">{selectedUserForAction.full_name || selectedUserForAction.username}</div>
+                  <div className={`px-2 py-1 text-xs rounded-full ${getRoleStyleClass(selectedUserForAction.role)}`}>
+                    {getRoleName(selectedUserForAction.role)}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-gray-600">用户名/学号</span>
+                  <span className="font-medium">{selectedUserForAction.username}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-gray-600">学号</span>
+                  <span className="font-medium">{selectedUserForAction.student_id || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-gray-600">邮箱</span>
+                  <span className="font-medium">{selectedUserForAction.email}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-gray-600">班级</span>
+                  <span className="font-medium">{getClassName(selectedUserForAction.class_id || '')}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-gray-600">角色</span>
+                  <span className={`px-2 py-1 text-xs rounded ${getRoleStyleClass(selectedUserForAction.role)}`}>
+                    {getRoleName(selectedUserForAction.role)}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-600">注册时间</span>
+                  <span className="font-medium">
+                    {selectedUserForAction.created_at ? new Date(selectedUserForAction.created_at).toLocaleDateString('zh-CN') : '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-4 border-t">
+              <button 
+                onClick={() => setShowUserDetailModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                关闭
               </button>
             </div>
           </div>
