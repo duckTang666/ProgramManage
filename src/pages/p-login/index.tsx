@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthService } from '../../lib/authService';
 import { useAuth } from '../../contexts/AuthContext';
+import { NetworkDiagnostics } from '../../utils/networkDiagnostics';
 import styles from './styles.module.css';
 
 type RoleType = 'student' | 'teacher' | 'admin';
@@ -42,6 +43,9 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const [currentRole, setCurrentRole] = useState<RoleType>('student');
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [diagnosticResults, setDiagnosticResults] = useState<Array<{ test: string; status: string; details?: string }>>([]);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // 设置页面标题
   useEffect(() => {
@@ -198,6 +202,33 @@ const LoginPage: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isLoading) {
       handleFormSubmit(e as any);
+    }
+  };
+
+  // 网络诊断
+  const handleNetworkDiagnostics = async () => {
+    setIsDiagnosing(true);
+    setShowDiagnostics(true);
+    
+    try {
+      const results = await NetworkDiagnostics.runFullDiagnostics();
+      setDiagnosticResults(results);
+      
+      // 显示建议
+      const recommendations = NetworkDiagnostics.getRecommendations();
+      if (recommendations.length > 0) {
+        console.log('\n💡 解决建议:');
+        recommendations.forEach(rec => console.log(rec));
+      }
+    } catch (error) {
+      console.error('诊断过程中发生错误:', error);
+      setDiagnosticResults([{
+        test: '诊断工具',
+        status: '❌ 失败',
+        details: error instanceof Error ? error.message : '未知错误'
+      }]);
+    } finally {
+      setIsDiagnosing(false);
     }
   };
 
@@ -392,8 +423,17 @@ const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* 忘记密码链接 */}
-          <div className="mt-6 text-center">
+          {/* 工具链接 */}
+          <div className="mt-6 text-center space-y-2">
+            <button
+              onClick={handleNetworkDiagnostics}
+              disabled={isDiagnosing}
+              className={`text-sm ${getTextSecondaryColorClass()} ${getHoverTextAccentClass()} transition-colors disabled:opacity-50`}
+            >
+              <i className={`fas fa-stethoscope mr-1 ${isDiagnosing ? 'fa-spin' : ''}`}></i>
+              {isDiagnosing ? '诊断中...' : '网络诊断'}
+            </button>
+            <span className="mx-3 text-text-secondary">|</span>
             <Link 
               to="/forgot-password" 
               className={`text-sm ${getTextSecondaryColorClass()} ${getHoverTextAccentClass()} transition-colors`}
@@ -402,6 +442,45 @@ const LoginPage: React.FC = () => {
               忘记密码？
             </Link>
           </div>
+          
+          {/* 诊断结果显示 */}
+          {showDiagnostics && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="font-semibold mb-3 text-sm">🔍 网络诊断结果</h4>
+              <div className="space-y-2 text-xs">
+                {diagnosticResults.map((result, index) => (
+                  <div key={index} className="flex items-start">
+                    <span className="mr-2">{result.status}</span>
+                    <div>
+                      <div className="font-medium">{result.test}</div>
+                      {result.details && (
+                        <div className="text-gray-600 text-xs">{result.details}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {diagnosticResults.some(r => r.status.includes('❌')) && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <h5 className="font-semibold text-xs mb-2">💡 解决建议:</h5>
+                  <div className="space-y-1 text-xs text-gray-700">
+                    {NetworkDiagnostics.getRecommendations().map((rec, index) => (
+                      <div key={index}>• {rec}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <button
+                onClick={() => setShowDiagnostics(false)}
+                className="mt-3 text-xs text-gray-500 hover:text-gray-700"
+              >
+                <i className="fas fa-times mr-1"></i>
+                关闭
+              </button>
+            </div>
+          )}
           
           {/* 注册链接 - 已隐藏 */}
           {/*

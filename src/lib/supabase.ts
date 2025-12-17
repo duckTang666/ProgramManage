@@ -7,7 +7,32 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL and Anon Key are required. Please check your .env.local file.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 创建带有额外配置的Supabase客户端
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      'Accept': 'application/json',
+    },
+  },
+  db: {
+    schema: 'public',
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+  // 添加请求重试配置
+  global: {
+    fetch: (url, options) => {
+      return fetch(url, {
+        ...options,
+        // 添加超时配置
+        signal: AbortSignal.timeout(15000), // 15秒超时
+      });
+    },
+  },
+});
 
 // 新闻分类表接口
 export interface NewsCategory {

@@ -11,5 +11,7 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       path: '/ws',
     }
-  }
+  },
+  // 配置为 Hash 路由模式提供支持
+  base: mode === 'production' ? './' : '/'
 }));

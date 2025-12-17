@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { createHashRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
@@ -53,8 +53,8 @@ function Listener() {
   return <Outlet />;
 }
 
-// 使用 createBrowserRouter 创建路由实例
-const router = createBrowserRouter([
+// 使用 createHashRouter 创建路由实例
+const router = createHashRouter([
   {
     path: '/',
     element: <Listener />,
