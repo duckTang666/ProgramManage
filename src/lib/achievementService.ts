@@ -361,28 +361,7 @@ export class AchievementService {
 
   // ==================== 成果协作者关系管理 ====================
 
-  // 检查协作者是存储在achievements表的parents_id字段还是achievements_parents表中
-  static async checkParentsFromField(achievementId: string): Promise<boolean> {
-    try {
-      // 检查achievements_parents表中是否有该成果的记录
-      const { count, error } = await supabase
-        .from('achievements_parents')
-        .select('*', { count: 'exact', head: true })
-        .eq('achievement_id', achievementId);
 
-      if (error) {
-        console.error('Error checking parents storage method:', error);
-        return false; // 默认从中间表获取
-      }
-
-      // 如果中间表有记录，说明是从中间表存储（多个协作者）
-      // 如果中间表没有记录，说明是从字段存储（单个协作者）
-      return (count || 0) === 0;
-    } catch (error) {
-      console.error('Error in checkParentsFromField:', error);
-      return false;
-    }
-  }
 
   // 为成果添加多个协作者
   static async addAchievementParents(
@@ -559,34 +538,10 @@ export class AchievementService {
 
       // 转换状态数字为字符串并获取附件
       if (data) {
-        // 根据存储方式获取协作者信息
-        let parents_ids: string[] = [];
-        let parents = [];
-
-        if (data.parents_id) {
-          // 检查是从中间表获取还是从字段解析
-          const isFromField = await this.checkParentsFromField(id);
-          
-          if (isFromField) {
-            // 单个协作者：从achievements表的parents_id字段解析
-            parents_ids = [data.parents_id];
-            // 获取协作者详细信息
-            const { data: userData } = await supabase
-              .from('users')
-              .select('id, username, email, full_name')
-              .eq('id', data.parents_id)
-              .single();
-            
-            parents = userData ? [userData] : [];
-          } else {
-            // 多个协作者：从achievements_parents表获取
-            const parentResult = await this.getAchievementParents(id);
-            if (parentResult.success && parentResult.data) {
-              parents_ids = parentResult.data.map(item => item.parent_id);
-              parents = parentResult.data.map(item => item.parent).filter(Boolean);
-            }
-          }
-        }
+        // 从achievements_parents表获取协作者信息
+        const parentResult = await this.getAchievementParents(id);
+        const parents = parentResult.success ? (parentResult.data?.map(item => item.parent).filter(Boolean) || []) : [];
+        const parents_ids = parents.map(p => p.id);
 
         const achievement = {
           ...data,
@@ -725,21 +680,13 @@ export class AchievementService {
       // 准备基础数据，排除协作者（因为需要单独处理）
       const { parents_ids, ...baseData } = achievementData;
       
-      // 根据协作者数量决定存储方式
-      let insertData: any = {
-        ...baseData,
-        status, // 根据directPublish参数决定状态
-        created_at: new Date().toISOString()
-      };
-
-      // 如果只有一个协作者，直接保存到achievements表的parents_id字段
-      if (parents_ids && parents_ids.length === 1) {
-        insertData.parents_id = parents_ids[0]; // 单个协作者ID
-      }
-
       const { data, error } = await supabase
         .from('achievements')
-        .insert([insertData])
+        .insert([{
+          ...baseData,
+          status, // 根据directPublish参数决定状态
+          created_at: new Date().toISOString()
+        }])
         .select()
         .single();
 
@@ -750,18 +697,12 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 处理协作者关系
+      // 如果有协作者，全部保存到achievements_parents中间表
       if (data && parents_ids && parents_ids.length > 0) {
-        if (parents_ids.length === 1) {
-          // 单个协作者：已经保存到achievements表的parents_id字段，不需要额外操作
-          console.log('单个协作者已保存到achievements表的parents_id字段:', parents_ids[0]);
-        } else {
-          // 多个协作者：保存到achievements_parents中间表
-          const parentResult = await this.addAchievementParents(data.id, parents_ids);
-          if (!parentResult.success) {
-            console.warn('Failed to add achievement parents:', parentResult.message);
-            // 不阻止成果创建，但记录警告
-          }
+        const parentResult = await this.addAchievementParents(data.id, parents_ids);
+        if (!parentResult.success) {
+          console.warn('Failed to add achievement parents:', parentResult.message);
+          // 不阻止成果创建，但记录警告
         }
       }
 
@@ -769,20 +710,10 @@ export class AchievementService {
       if (data) {
         data.status = this.convertStatusFromNumber(data.status as AchievementStatusCode);
         
-        // 根据协作者数量获取协作者信息
-        if (parents_ids && parents_ids.length === 1) {
-          // 单个协作者：从achievements表获取
-          (data as any).parents = [{
-            id: parents_ids[0],
-            username: '', // 这里可以后续查询获取
-            email: ''
-          }];
-        } else {
-          // 多个协作者：从achievements_parents表获取
-          const parentResult = await this.getAchievementParents(data.id);
-          if (parentResult.success && parentResult.data) {
-            (data as any).parents = parentResult.data.map(item => item.parent);
-          }
+        // 从achievements_parents表获取协作者信息
+        const parentResult = await this.getAchievementParents(data.id);
+        if (parentResult.success && parentResult.data) {
+          (data as any).parents = parentResult.data.map(item => item.parent).filter(Boolean);
         }
       }
 
@@ -1296,33 +1227,10 @@ export class AchievementService {
       }
 
       if (data) {
-        // 根据存储方式获取协作者信息
-        let parents_ids: string[] = [];
-        let parents = [];
-
-        if (data.parents_id) {
-          const isFromField = await this.checkParentsFromField(data.id);
-          
-          if (isFromField) {
-            // 单个协作者：从achievements表的parents_id字段解析
-            parents_ids = [data.parents_id];
-            // 获取协作者详细信息
-            const { data: userData } = await supabase
-              .from('users')
-              .select('id, username, email, full_name')
-              .eq('id', data.parents_id)
-              .single();
-            
-            parents = userData ? [userData] : [];
-          } else {
-            // 多个协作者：从achievements_parents表获取
-            const parentResult = await this.getAchievementParents(data.id);
-            if (parentResult.success && parentResult.data) {
-              parents_ids = parentResult.data.map(item => item.parent_id);
-              parents = parentResult.data.map(item => item.parent).filter(Boolean);
-            }
-          }
-        }
+        // 从achievements_parents表获取协作者信息
+        const parentResult = await this.getAchievementParents(data.id);
+        const parents = parentResult.success ? (parentResult.data?.map(item => item.parent).filter(Boolean) || []) : [];
+        const parents_ids = parents.map(p => p.id);
 
         const achievementWithUsers = {
           ...data,

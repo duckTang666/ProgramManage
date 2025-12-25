@@ -108,13 +108,34 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
   onSelect,
   onClose
 }) => {
+  // 内部状态管理临时选择的用户ID
+  const [tempSelected, setTempSelected] = useState<string[]>([]);
+
+  // 每次打开模态框时重置临时选择为当前已选择的用户
+  useEffect(() => {
+    if (isOpen) {
+      setTempSelected(selectedUserIds);
+    }
+  }, [isOpen, selectedUserIds]);
+
   if (!isOpen) return null;
 
   const handleUserToggle = (userId: string) => {
-    const newSelectedIds = selectedUserIds.includes(userId)
-      ? selectedUserIds.filter(id => id !== userId)
-      : [...selectedUserIds, userId];
-    onSelect(newSelectedIds);
+    const newSelectedIds = tempSelected.includes(userId)
+      ? tempSelected.filter(id => id !== userId)
+      : [...tempSelected, userId];
+    setTempSelected(newSelectedIds);
+  };
+
+  const handleConfirmSelect = () => {
+    // 点击确认按钮时才真正更新选择
+    onSelect(tempSelected);
+  };
+
+  const handleCancel = () => {
+    // 取消时恢复原始选择
+    setTempSelected(selectedUserIds);
+    onClose();
   };
 
   return (
@@ -127,7 +148,7 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
               <input 
                 type="checkbox" 
                 id={user.id}
-                checked={selectedUserIds.includes(user.id)}
+                checked={tempSelected.includes(user.id)}
                 onChange={() => handleUserToggle(user.id)}
                 className="w-4 h-4 text-secondary focus:ring-secondary border-border-light rounded"
               />
@@ -139,29 +160,30 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
         </div>
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-text-muted">
-            已选择 {selectedUserIds.length} 位协作者
+            已选择 {tempSelected.length} 位协作者
           </span>
-          {selectedUserIds.length > 0 && (
+          {tempSelected.length > 0 && (
             <button 
-              onClick={() => onSelect([])}
+              onClick={() => setTempSelected([])}
               className="text-sm text-red-500 hover:text-red-600"
             >
               清空选择
             </button>
           )}
         </div>
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-between space-x-4">
           <button 
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-4 py-2 border border-border-light rounded-lg text-text-secondary hover:bg-bg-gray transition-all"
           >
             取消
           </button>
           <button 
-            onClick={onClose}
-            className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-accent transition-all"
+            onClick={handleConfirmSelect}
+            className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-accent transition-all flex items-center"
           >
-            确认选择
+            <i className="fas fa-plus mr-2"></i>
+            确认添加
           </button>
         </div>
       </div>
@@ -258,6 +280,11 @@ const AchievementPublishPage: React.FC = () => {
   // 用户选择模态框状态
   const [showInstructorModal, setShowInstructorModal] = useState(false);
   const [showStudentModal, setShowStudentModal] = useState(false);
+  
+  // 模态框中临时选中的协作者ID数组（未确认）
+  const [tempSelectedStudents, setTempSelectedStudents] = useState<string[]>([]);
+  // 已确认添加的协作者用户数据（从数据库获取）
+  const [confirmedCollaborators, setConfirmedCollaborators] = useState<User[]>([]);
   
   // 加载当前用户信息
   useEffect(() => {
@@ -391,6 +418,48 @@ const AchievementPublishPage: React.FC = () => {
       ...prev,
       parents_ids: studentIds
     }));
+  };
+
+  // 确认学生选择（点击加号按钮时调用）
+  const handleStudentsConfirmSelect = async (studentIds: string[]) => {
+    // 更新表单数据
+    setFormData(prev => ({
+      ...prev,
+      parents_ids: studentIds
+    }));
+    
+    // 获取选中的协作者详细信息
+    try {
+      const collaboratorDetails = studentIds.map(studentId => {
+        const student = students.find(s => s.id === studentId);
+        return student;
+      }).filter(Boolean);
+      
+      setConfirmedCollaborators(collaboratorDetails);
+    } catch (error) {
+      console.error('获取协作者详细信息失败:', error);
+    }
+    
+    setShowStudentModal(false); // 关闭模态框
+  };
+
+  // 从协作者ID获取用户详情
+  const getCollaboratorDetails = async (studentIds: string[]): Promise<User[]> => {
+    try {
+      if (studentIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, email, full_name, role, created_at')
+        .in('id', studentIds);
+      
+      if (error) throw error;
+      
+      return data || [];
+    } catch (error) {
+      console.error('获取协作者详情失败:', error);
+      return [];
+    }
   };
   
   // 合作伙伴输入更新
@@ -1341,15 +1410,12 @@ const AchievementPublishPage: React.FC = () => {
                         {instructor}（指导老师）
                       </span>
                     ))}
-                    {formData.parentsIds.length > 0 && (
-                      formData.parentsIds.map(studentId => {
-                        const student = students.find(s => s.id === studentId);
-                        return student ? (
-                          <span key={studentId} className="px-3 py-1 bg-secondary bg-opacity-20 text-secondary rounded-full text-sm">
-                            {student.full_name || student.username}（学生协作者）
-                          </span>
-                        ) : null;
-                      })
+                    {confirmedCollaborators.length > 0 && (
+                      confirmedCollaborators.map(collaborator => (
+                        <span key={collaborator.id} className="px-3 py-1 bg-secondary bg-opacity-20 text-secondary rounded-full text-sm">
+                          {collaborator.full_name || collaborator.username}（学生协作者）
+                        </span>
+                      ))
                     )}
                     {formData.partners.filter(partner => partner.trim()).map((partner, index) => (
                       <span key={index} className="px-3 py-1 bg-bg-gray rounded-full text-sm text-text-secondary">
@@ -1499,7 +1565,7 @@ const AchievementPublishPage: React.FC = () => {
         users={students}
         title="选择学生协作者"
         selectedUserIds={formData.parents_ids}
-        onSelect={handleStudentsSelect}
+        onSelect={handleStudentsConfirmSelect}
         onClose={() => setShowStudentModal(false)}
       />
       
