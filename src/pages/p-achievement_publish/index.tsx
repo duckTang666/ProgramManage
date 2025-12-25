@@ -249,7 +249,7 @@ const AchievementPublishPage: React.FC = () => {
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]);
   
   // 数据状态
-
+  const [isLoading, setIsLoading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>(ACHIEVEMENT_TYPES);
   const [instructors, setInstructors] = useState<User[]>([]);
