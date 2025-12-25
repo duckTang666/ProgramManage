@@ -41,7 +41,7 @@ export interface AchievementDB {
   score?: number;
   publisher_id: string;
   instructor_id: string;
-  parents_id?: string;
+  parents_id?: string; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
   created_at: string;
   updated_at?: string;
 }
@@ -58,7 +58,8 @@ export interface Achievement {
   score?: number;
   publisher_id: string;
   instructor_id: string;
-  parents_id?: string;
+  parents_id?: string; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
+  parents_ids?: string[]; // 解析后的协作者ID数组
   created_at: string;
   updated_at?: string;
   attachments?: AchievementAttachment[];
@@ -73,7 +74,7 @@ export interface CreateAchievementRequest {
   video_url?: string;
   publisher_id: string;
   instructor_id: string;
-  parents_id?: string | null;
+  parents_id?: string | null; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
 }
 
 // 更新成果的请求数据
@@ -150,11 +151,12 @@ export interface AchievementWithUsers extends Achievement {
     username: string;
     email: string;
   };
-  parent?: {
+  parents?: Array<{
     id: string;
     username: string;
     email: string;
-  };
+    full_name?: string;
+  }>;
   type?: {
     id: string;
     name: string;

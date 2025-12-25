@@ -25,7 +25,7 @@ interface FormData {
   attachments: FileUpload[];
   typeId: string; // 新增：成果类型ID
   instructorId: string; // 新增：指导老师ID
-  parentsId: string; // 新增：父级成果ID（其他学生）
+  parentsIds: string[]; // 新增：多个协作者学生ID数组
 }
 
 // 新增接口定义
@@ -35,6 +35,16 @@ interface UserSelectModalProps {
   title: string;
   selectedUserId: string;
   onSelect: (userId: string) => void;
+  onClose: () => void;
+}
+
+// 多选用户模态框接口定义
+interface MultiUserSelectModalProps {
+  isOpen: boolean;
+  users: User[];
+  title: string;
+  selectedUserIds: string[];
+  onSelect: (userIds: string[]) => void;
   onClose: () => void;
 }
 
@@ -69,6 +79,76 @@ const UserSelectModal: React.FC<UserSelectModalProps> = ({
               </label>
             </div>
           ))}
+        </div>
+        <div className="flex justify-end space-x-4">
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 border border-border-light rounded-lg text-text-secondary hover:bg-bg-gray transition-all"
+          >
+            取消
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-accent transition-all"
+          >
+            确认选择
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 多选用户模态框组件
+const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
+  isOpen,
+  users,
+  title,
+  selectedUserIds,
+  onSelect,
+  onClose
+}) => {
+  if (!isOpen) return null;
+
+  const handleUserToggle = (userId: string) => {
+    const newSelectedIds = selectedUserIds.includes(userId)
+      ? selectedUserIds.filter(id => id !== userId)
+      : [...selectedUserIds, userId];
+    onSelect(newSelectedIds);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[60vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-text-primary mb-4">{title}</h3>
+        <div className="space-y-2 mb-6">
+          {users.map(user => (
+            <div key={user.id} className="flex items-center">
+              <input 
+                type="checkbox" 
+                id={user.id}
+                checked={selectedUserIds.includes(user.id)}
+                onChange={() => handleUserToggle(user.id)}
+                className="w-4 h-4 text-secondary focus:ring-secondary border-border-light rounded"
+              />
+              <label htmlFor={user.id} className="ml-2 text-text-primary flex-1">
+                {user.full_name || user.username} ({user.email})
+              </label>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-sm text-text-muted">
+            已选择 {selectedUserIds.length} 位协作者
+          </span>
+          {selectedUserIds.length > 0 && (
+            <button 
+              onClick={() => onSelect([])}
+              className="text-sm text-red-500 hover:text-red-600"
+            >
+              清空选择
+            </button>
+          )}
         </div>
         <div className="flex justify-end space-x-4">
           <button 
@@ -243,7 +323,7 @@ const AchievementPublishPage: React.FC = () => {
     attachments: [],
     typeId: '',
     instructorId: '',
-    parentsId: ''
+    parentsIds: []
   });
   
   // 文件输入引用
@@ -305,11 +385,11 @@ const AchievementPublishPage: React.FC = () => {
     }));
   };
   
-  // 其他学生选择
-  const handleStudentSelect = (studentId: string) => {
+  // 多个学生选择
+  const handleStudentsSelect = (studentIds: string[]) => {
     setFormData(prev => ({
       ...prev,
-      parentsId: studentId
+      parentsIds: studentIds
     }));
   };
   
@@ -490,7 +570,7 @@ const AchievementPublishPage: React.FC = () => {
         video_url: '', // 暂时不处理视频
         publisher_id: currentUserId,
         instructor_id: formData.instructorId || instructors[0]?.id || '',
-        parents_id: formData.parentsId || null
+        parents_id: formData.parentsIds.length > 0 ? formData.parentsIds.join(',') : null
       };
       
       const result = await AchievementService.saveDraft(draftData);
@@ -642,7 +722,7 @@ const AchievementPublishPage: React.FC = () => {
         video_url: videoUrl,
         publisher_id: currentUserId,
         instructor_id: user?.role === 2 ? currentUserId : formData.instructorId, // 教师自己是指导教师
-        parents_id: formData.parentsId || null
+        parents_id: formData.parentsIds.length > 0 ? formData.parentsIds.join(',') : null
       };
       
       // 教师直接发布，学生需要审批
@@ -952,16 +1032,23 @@ const AchievementPublishPage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-text-primary mb-4">参与人员</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-text-secondary mb-1">合作伙伴</label>
+                      <label className="block text-sm font-medium text-text-secondary mb-1">学生协作者</label>
                       <div className="space-y-2">
                         <div className="flex items-center">
-                          <input 
-                            type="text" 
-                            value={students.find(s => s.id === formData.parentsId)?.username || ''}
-                            readOnly
-                            className="flex-1 px-4 py-2 border border-border-light rounded-lg bg-bg-gray text-text-muted transition-all" 
-                            placeholder="可选：从学生列表中选择合作伙伴"
-                          />
+                          <div className="flex-1 px-4 py-2 border border-border-light rounded-lg bg-bg-gray text-text-muted min-h-[42px] flex items-center flex-wrap gap-2">
+                            {formData.parentsIds.length > 0 ? (
+                              formData.parentsIds.map(studentId => {
+                                const student = students.find(s => s.id === studentId);
+                                return student ? (
+                                  <span key={studentId} className="bg-secondary bg-opacity-20 text-secondary px-2 py-1 rounded-full text-sm">
+                                    {student.full_name || student.username}
+                                  </span>
+                                ) : null;
+                              })
+                            ) : (
+                              <span className="text-gray-400">可选：从学生列表中选择协作者</span>
+                            )}
+                          </div>
                           <button 
                             onClick={() => setShowStudentModal(true)}
                             className="ml-2 px-3 py-2 bg-secondary text-white rounded-lg hover:bg-accent transition-all"
@@ -976,7 +1063,7 @@ const AchievementPublishPage: React.FC = () => {
                               value={partner}
                               onChange={(e) => handlePartnerChange(index, e.target.value)}
                               className="flex-1 px-4 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary transition-all" 
-                              placeholder="输入合作伙伴姓名"
+                              placeholder="输入外部合作伙伴姓名"
                             />
                             <button 
                               onClick={handleAddPartner}
@@ -1254,9 +1341,19 @@ const AchievementPublishPage: React.FC = () => {
                         {instructor}（指导老师）
                       </span>
                     ))}
+                    {formData.parentsIds.length > 0 && (
+                      formData.parentsIds.map(studentId => {
+                        const student = students.find(s => s.id === studentId);
+                        return student ? (
+                          <span key={studentId} className="px-3 py-1 bg-secondary bg-opacity-20 text-secondary rounded-full text-sm">
+                            {student.full_name || student.username}（学生协作者）
+                          </span>
+                        ) : null;
+                      })
+                    )}
                     {formData.partners.filter(partner => partner.trim()).map((partner, index) => (
                       <span key={index} className="px-3 py-1 bg-bg-gray rounded-full text-sm text-text-secondary">
-                        {partner}（合作伙伴）
+                        {partner}（外部合作伙伴）
                       </span>
                     ))}
                   </div>
@@ -1397,12 +1494,12 @@ const AchievementPublishPage: React.FC = () => {
         onClose={() => setShowInstructorModal(false)}
       />
       
-      <UserSelectModal
+      <MultiUserSelectModal
         isOpen={showStudentModal}
         users={students}
-        title="选择合作伙伴（其他学生）"
-        selectedUserId={formData.parentsId}
-        onSelect={handleStudentSelect}
+        title="选择学生协作者"
+        selectedUserIds={formData.parentsIds}
+        onSelect={handleStudentsSelect}
         onClose={() => setShowStudentModal(false)}
       />
       

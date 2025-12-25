@@ -334,6 +334,19 @@ export class AchievementService {
     }
   }
 
+  // 解析多协作者ID字符串为数组
+  static parseParentsIds(parentsId?: string): string[] {
+    if (!parentsId || parentsId.trim() === '') {
+      return [];
+    }
+    return parentsId.split(',').map(id => id.trim()).filter(id => id !== '');
+  }
+
+  // 将协作者ID数组转换为字符串
+  static serializeParentsIds(parentsIds: string[]): string {
+    return parentsIds.filter(id => id.trim() !== '').join(',');
+  }
+
   // 根据ID获取单个成果
   static async getAchievementById(id: string): Promise<{ success: boolean; data?: Achievement; message?: string }> {
     try {
@@ -359,7 +372,9 @@ export class AchievementService {
       if (data) {
         const achievement = {
           ...data,
-          status: this.convertStatusFromNumber(data.status as AchievementStatusCode)
+          status: this.convertStatusFromNumber(data.status as AchievementStatusCode),
+          // 解析多协作者ID
+          parents_ids: this.parseParentsIds(data.parents_id)
         };
 
         // 获取附件信息
@@ -1006,11 +1021,6 @@ export class AchievementService {
             username,
             email
           ),
-          parent:users!parents_id (
-            id,
-            username,
-            email
-          ),
           achievement_type:achievement_types (
             id,
             name
@@ -1026,7 +1036,33 @@ export class AchievementService {
         throw new Error(error.message);
       }
 
-      return { success: true, data: data as AchievementWithUsers };
+      if (data) {
+        // 解析多协作者ID并获取用户信息
+        const parentsIds = this.parseParentsIds(data.parents_id);
+        let parents = [];
+        
+        if (parentsIds.length > 0) {
+          const { data: parentsData, error: parentsError } = await supabase
+            .from('users')
+            .select('id, username, email, full_name')
+            .in('id', parentsIds);
+          
+          if (!parentsError && parentsData) {
+            parents = parentsData;
+          }
+        }
+
+        const achievementWithUsers = {
+          ...data,
+          status: this.convertStatusFromNumber(data.status as AchievementStatusCode),
+          parents_ids: parentsIds,
+          parents
+        } as AchievementWithUsers;
+
+        return { success: true, data: achievementWithUsers };
+      }
+
+      return { success: true, data: undefined };
     } catch (error) {
       console.error('Error fetching achievement with users:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取成果详情失败' };
