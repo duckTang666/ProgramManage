@@ -1276,7 +1276,7 @@ const ProjectIntroPage: React.FC = () => {
                 <i className="fas fa-graduation-cap text-white text-lg"></i>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">河北师范大学软件学院</h1>
+                <h1 className="text-lg font-bold text-text-primary">软件学院</h1>
                 <p className="text-xs text-text-muted">软院项目通</p>
               </div>
             </div>

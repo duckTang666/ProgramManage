@@ -88,7 +88,7 @@ const HomePage: React.FC = () => {
                 <i className="fas fa-graduation-cap text-white text-lg"></i>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">河北师范大学软件学院</h1>
+                <h1 className="text-lg font-bold text-text-primary">软件学院</h1>
                 <p className="text-xs text-text-muted">软院项目通</p>
               </div>
             </div>
@@ -203,7 +203,7 @@ const HomePage: React.FC = () => {
             <div className="flex flex-col justify-center">
               <h4 className="text-lg font-semibold text-text-primary mb-3">学院概况</h4>
               <p className="text-text-secondary leading-relaxed mb-4">
-                河北师范大学软件学院成立于2002年，是河北省首批示范性软件学院。学院以培养应用型、复合型、创新型软件人才为目标，
+                软件学院是河北省首批示范性软件学院。学院以培养应用型、复合型、创新型软件人才为目标，
                 拥有一支结构合理、教学经验丰富的师资队伍，现有教授15人，副教授28人，博士学位教师占比75%。
               </p>
               <h4 className="text-lg font-semibold text-text-primary mb-3">师资力量</h4>
