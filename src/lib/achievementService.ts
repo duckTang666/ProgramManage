@@ -373,26 +373,31 @@ export class AchievementService {
         return { success: true, data: [] };
       }
 
+      console.log('🔗 添加协作者关系:', { achievementId, parentIds });
+
       // 准备插入数据
       const insertData = parentIds.map(parentId => ({
-        achievement_id: achievementId,
-        parent_id: parentId
+        achievement_id: achievementId,  // 新创建的成果UUID
+        parent_id: parentId             // 协作者用户UUID
       }));
+
+      console.log('📝 准备插入achievements_parents表的数据:', insertData);
 
       const { data, error } = await supabase
         .from('achievements_parents')
         .insert(insertData)
         .select('*')
-        .order('created_at');
+        .order('id'); // 按自增ID排序
 
       if (error) {
-        console.error('Error adding achievement parents:', error);
+        console.error('❌ 添加协作者失败:', error);
         return { success: false, message: `添加协作者失败: ${error.message}` };
       }
 
+      console.log('✅ 协作者关系添加成功:', data);
       return { success: true, data: data as AchievementParent[] };
     } catch (error) {
-      console.error('Error in addAchievementParents:', error);
+      console.error('❌ addAchievementParents异常:', error);
       return { 
         success: false, 
         message: error instanceof Error ? error.message : '添加协作者失败' 
@@ -768,10 +773,13 @@ export class AchievementService {
   // 保存草稿
   static async saveDraft(achievementData: Omit<CreateAchievementRequest, 'status'>): Promise<{ success: boolean; data?: Achievement; message?: string }> {
     try {
+      // 准备基础数据，排除协作者（因为需要单独处理）
+      const { parents_ids, ...baseData } = achievementData;
+      
       const { data, error } = await supabase
         .from('achievements')
         .insert([{
-          ...achievementData,
+          ...baseData,
           status: STATUS_TO_NUMBER['draft'], // 转换为数字状态
           created_at: new Date().toISOString()
         }])
@@ -785,16 +793,24 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
+      // 如果有协作者，保存到achievements_parents中间表
+      if (data && parents_ids && parents_ids.length > 0) {
+        const parentResult = await this.addAchievementParents(data.id, parents_ids);
+        if (!parentResult.success) {
+          console.warn('Failed to add achievement parents for draft:', parentResult.message);
+          // 不阻止草稿保存，但记录警告
+        }
+      }
+
       // 转换数据中的数字状态为字符串
       if (data) {
         data.status = this.convertStatusFromNumber(data.status as AchievementStatusCode);
-      }
-
-      if (error) {
-        const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
-          ? (error as { message: string }).message 
-          : String(error);
-        throw new Error(errorMessage);
+        
+        // 从achievements_parents表获取协作者信息
+        const parentResult = await this.getAchievementParents(data.id);
+        if (parentResult.success && parentResult.data) {
+          (data as any).parents = parentResult.data.map(item => item.parent).filter(Boolean);
+        }
       }
 
       return { success: true, data };

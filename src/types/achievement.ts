@@ -106,9 +106,9 @@ export interface AchievementAttachment {
 
 // 成果协作者关系
 export interface AchievementParent {
-  id: string;
-  achievement_id: string;
-  parent_id: string;
+  id: number;              // 自增整数ID，从1开始
+  achievement_id: string;   // 成果UUID
+  parent_id: string;       // 协作者用户UUID
   created_at: string;
 }
 
