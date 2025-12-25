@@ -240,8 +240,29 @@ export class AchievementService {
         status: this.convertStatusFromNumber(achievement.status as AchievementStatusCode)
       }));
 
-      console.log(`📊 成果查询结果 (${userRole === 1 ? '学生' : userRole === 2 ? '教师' : '全部'}):`, processedData?.length, '条记录');
+      // 为教师角色获取协作者信息
+      if (userRole === 2 && processedData) {
+        const achievementsWithParents = await Promise.all(
+          processedData.map(async (achievement) => {
+            try {
+              const parentResult = await this.getAchievementParents(achievement.id);
+              if (parentResult.success && parentResult.data) {
+                const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+                achievement.parents = parents;
+              }
+            } catch (error) {
+              console.warn(`获取成果 ${achievement.id} 的协作者信息失败:`, error);
+              achievement.parents = [];
+            }
+            return achievement;
+          })
+        );
+        
+        console.log(`📊 成果查询结果 (教师):`, achievementsWithParents.length, '条记录');
+        return { success: true, data: achievementsWithParents };
+      }
 
+      console.log(`📊 成果查询结果 (${userRole === 1 ? '学生' : '全部'}):`, processedData?.length, '条记录');
       return { success: true, data: processedData };
     } catch (error) {
       console.error('Error fetching achievements by role:', error);

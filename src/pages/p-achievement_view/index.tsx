@@ -221,6 +221,13 @@ const AchievementViewPage: React.FC = () => {
       if (result.success && result.data) {
         const achievementData = result.data;
         
+        // 获取协作者信息
+        const parentResult = await AchievementService.getAchievementParents(achievementId);
+        if (parentResult.success && parentResult.data) {
+          const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+          achievementData.parents = parents;
+        }
+        
         // 获取附件信息
         const attachmentsResult = await AchievementService.getAchievementAttachments(achievementId);
         if (attachmentsResult.success) {
@@ -684,12 +691,28 @@ const AchievementViewPage: React.FC = () => {
                         {new Date(currentAchievement.created_at).toLocaleString('zh-CN')}
                       </p>
                     </div>
-                    {currentAchievement.parent?.username && (
-                      <div>
-                        <p className="text-sm text-text-muted mb-1">合作伙伴</p>
-                        <p className="text-text-primary">
-                          {currentAchievement.parent?.full_name || currentAchievement.parent.username}
-                        </p>
+                    {currentAchievement.parents && currentAchievement.parents.length > 0 && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-text-muted mb-1">协作者</p>
+                        <div className="space-y-2">
+                          {currentAchievement.parents.map((parent, index) => (
+                            <div key={parent.id} className="flex items-center space-x-3 text-sm">
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-sm font-medium">
+                                {(parent.full_name || parent.username || '未知').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="text-text-primary font-medium">
+                                  {parent.full_name || parent.username}
+                                </span>
+                                {parent.email && (
+                                  <span className="text-text-muted text-xs ml-2">
+                                    ({parent.email})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

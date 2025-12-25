@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成果查看页面协作者显示测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">成果查看页面协作者显示测试</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">测试功能</h2>
+            <div class="space-y-4">
+                <div class="flex items-center space-x-4">
+                    <button onclick="testGetAchievementsByRole()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                        测试 getAchievementsByRole
+                    </button>
+                    <span class="text-sm text-gray-600">测试教师获取成果列表时是否包含协作者信息</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="testGetAchievementWithUsersById()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                        测试 getAchievementWithUsersById
+                    </button>
+                    <span class="text-sm text-gray-600">测试获取单个成果详情时是否包含协作者信息</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="testGetAchievementParents()" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors">
+                        测试 getAchievementParents
+                    </button>
+                    <span class="text-sm text-gray-600">测试直接获取协作者信息</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="clearResults()" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                        清空结果
+                    </button>
+                    <span class="text-sm text-gray-600">清空测试结果</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 测试结果区域 -->
+        <div id="testResults" class="space-y-4">
+            <!-- 测试结果将在这里显示 -->
+        </div>
+    </div>
+
+    <script>
+        // Supabase 配置
+        const supabaseUrl = 'https://your-project-id.supabase.co';
+        const supabaseKey = 'your-anon-key';
+        
+        // 模拟 AchievementService 类
+        class AchievementService {
+            static async getAchievementsByRole(userRole) {
+                console.log(`📊 测试 getAchievementsByRole，角色: ${userRole}`);
+                
+                try {
+                    // 模拟教师获取所有学生的成果
+                    if (userRole === 2) {
+                        // 1. 先获取学生ID
+                        const { data: students } = await supabase
+                            .from('users')
+                            .select('id')
+                            .eq('role', 1);
+                        
+                        const studentIds = students?.map(s => s.id) || [];
+                        
+                        if (studentIds.length === 0) {
+                            return { success: true, data: [] };
+                        }
+                        
+                        // 2. 获取成果
+                        const { data, error } = await supabase
+                            .from('achievements')
+                            .select(`
+                                *,
+                                achievement_types (name),
+                                publisher:users!publisher_id (username, email, full_name),
+                                instructor:users!instructor_id (username, email, full_name)
+                            `)
+                            .in('publisher_id', studentIds)
+                            .order('created_at', { ascending: false });
+                        
+                        if (error) throw error;
+                        
+                        // 3. 为每个成果获取协作者信息
+                        const achievementsWithParents = await Promise.all(
+                            data.map(async (achievement) => {
+                                try {
+                                    const parentResult = await this.getAchievementParents(achievement.id);
+                                    if (parentResult.success && parentResult.data) {
+                                        const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+                                        achievement.parents = parents;
+                                    }
+                                } catch (error) {
+                                    console.warn(`获取成果 ${achievement.id} 的协作者信息失败:`, error);
+                                    achievement.parents = [];
+                                }
+                                return achievement;
+                            })
+                        );
+                        
+                        return { success: true, data: achievementsWithParents };
+                    }
+                    
+                    return { success: true, data: [] };
+                } catch (error) {
+                    console.error('Error in getAchievementsByRole:', error);
+                    return { success: false, message: error.message };
+                }
+            }
+            
+            static async getAchievementWithUsersById(achievementId) {
+                console.log(`📊 测试 getAchievementWithUsersById，成果ID: ${achievementId}`);
+                
+                try {
+                    // 获取成果基本信息
+                    const { data, error } = await supabase
+                        .from('achievements')
+                        .select(`
+                            *,
+                            achievement_types (name),
+                            publisher:users!publisher_id (id, username, email, full_name),
+                            instructor:users!instructor_id (id, username, email, full_name)
+                        `)
+                        .eq('id', achievementId)
+                        .single();
+                    
+                    if (error) throw error;
+                    
+                    // 获取协作者信息
+                    const parentResult = await this.getAchievementParents(achievementId);
+                    if (parentResult.success && parentResult.data) {
+                        const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+                        data.parents = parents;
+                    }
+                    
+                    return { success: true, data };
+                } catch (error) {
+                    console.error('Error in getAchievementWithUsersById:', error);
+                    return { success: false, message: error.message };
+                }
+            }
+            
+            static async getAchievementParents(achievementId) {
+                console.log(`📊 测试 getAchievementParents，成果ID: ${achievementId}`);
+                
+                try {
+                    const { data, error } = await supabase
+                        .from('achievements_parents')
+                        .select(`
+                            *,
+                            parent:users!parent_id (id, username, email, full_name)
+                        `)
+                        .eq('achievement_id', achievementId)
+                        .order('created_at');
+
+                    if (error) throw error;
+
+                    return { success: true, data };
+                } catch (error) {
+                    console.error('Error in getAchievementParents:', error);
+                    return { success: false, message: error.message };
+                }
+            }
+        }
+
+        // 测试函数
+        async function testGetAchievementsByRole() {
+            logResult('开始测试 getAchievementsByRole (教师角色)...', 'info');
+            
+            try {
+                const result = await AchievementService.getAchievementsByRole(2);
+                
+                if (result.success) {
+                    const achievements = result.data || [];
+                    logResult(`✅ 成功获取 ${achievements.length} 条成果记录`, 'success');
+                    
+                    // 显示前3条成果的协作者信息
+                    achievements.slice(0, 3).forEach((achievement, index) => {
+                        const parents = achievement.parents || [];
+                        logResult(`📋 成果 ${index + 1}: "${achievement.title}" - 协作者数量: ${parents.length}`, 'info');
+                        
+                        if (parents.length > 0) {
+                            parents.forEach(parent => {
+                                logResult(`  👤 协作者: ${parent.full_name || parent.username} (${parent.email})`, 'success');
+                            });
+                        } else {
+                            logResult(`  ℹ️  该成果无协作者`, 'info');
+                        }
+                    });
+                } else {
+                    logResult(`❌ 获取失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetAchievementWithUsersById() {
+            // 先获取一个成果ID用于测试
+            try {
+                const { data: achievements } = await supabase
+                    .from('achievements')
+                    .select('id, title')
+                    .limit(1);
+                
+                if (!achievements || achievements.length === 0) {
+                    logResult('❌ 没有找到可用于测试的成果', 'error');
+                    return;
+                }
+                
+                const achievementId = achievements[0].id;
+                const achievementTitle = achievements[0].title;
+                
+                logResult(`开始测试 getAchievementWithUsersById，测试成果: "${achievementTitle}"...`, 'info');
+                
+                const result = await AchievementService.getAchievementWithUsersById(achievementId);
+                
+                if (result.success) {
+                    const achievement = result.data;
+                    const parents = achievement.parents || [];
+                    
+                    logResult(`✅ 成功获取成果详情: "${achievement.title}"`, 'success');
+                    logResult(`👤 发布者: ${achievement.publisher?.full_name || achievement.publisher?.username}`, 'info');
+                    logResult(`👨‍🏫 指导老师: ${achievement.instructor?.full_name || achievement.instructor?.username || '未指定'}`, 'info');
+                    logResult(`🤝 协作者数量: ${parents.length}`, 'info');
+                    
+                    if (parents.length > 0) {
+                        parents.forEach(parent => {
+                            logResult(`  👥 协作者: ${parent.full_name || parent.username} (${parent.email})`, 'success');
+                        });
+                    } else {
+                        logResult(`  ℹ️  该成果无协作者`, 'info');
+                    }
+                } else {
+                    logResult(`❌ 获取失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetAchievementParents() {
+            // 先获取一个成果ID用于测试
+            try {
+                const { data: achievements } = await supabase
+                    .from('achievements')
+                    .select('id, title')
+                    .limit(1);
+                
+                if (!achievements || achievements.length === 0) {
+                    logResult('❌ 没有找到可用于测试的成果', 'error');
+                    return;
+                }
+                
+                const achievementId = achievements[0].id;
+                const achievementTitle = achievements[0].title;
+                
+                logResult(`开始测试 getAchievementParents，测试成果: "${achievementTitle}"...`, 'info');
+                
+                const result = await AchievementService.getAchievementParents(achievementId);
+                
+                if (result.success) {
+                    const parents = result.data || [];
+                    logResult(`✅ 成功获取协作者信息，数量: ${parents.length}`, 'success');
+                    
+                    if (parents.length > 0) {
+                        parents.forEach(parent => {
+                            logResult(`  👥 协作者: ${parent.parent?.full_name || parent.parent?.username} (${parent.parent?.email})`, 'success');
+                        });
+                    } else {
+                        logResult(`  ℹ️  该成果无协作者`, 'info');
+                    }
+                } else {
+                    logResult(`❌ 获取失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                logResult(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function logResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const colorClass = {
+                'info': 'text-blue-600',
+                'success': 'text-green-600',
+                'error': 'text-red-600',
+                'warning': 'text-yellow-600'
+            }[type] || 'text-gray-600';
+            
+            const bgClass = {
+                'info': 'bg-blue-50 border-blue-200',
+                'success': 'bg-green-50 border-green-200',
+                'error': 'bg-red-50 border-red-200',
+                'warning': 'bg-yellow-50 border-yellow-200'
+            }[type] || 'bg-gray-50 border-gray-200';
+            
+            const resultHtml = `
+                <div class="border rounded-lg p-4 ${bgClass}">
+                    <div class="flex items-start space-x-2">
+                        <span class="text-xs text-gray-500 whitespace-nowrap">${timestamp}</span>
+                        <span class="${colorClass} break-words">${message}</span>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML += resultHtml;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '';
+            logResult('测试结果已清空', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            logResult('🚀 成果查看页面协作者显示测试页面已加载', 'info');
+            logResult('📝 请配置 Supabase 连接信息后开始测试', 'warning');
+            logResult('🔧 在浏览器控制台查看详细的调试信息', 'info');
+        });
+    </script>
+</body>
+</html>
