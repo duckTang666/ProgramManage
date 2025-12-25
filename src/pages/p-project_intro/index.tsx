@@ -249,9 +249,24 @@ const ProjectIntroPage: React.FC = () => {
           setSelectedInstructorId(achievement.instructor_id);
         }
         
-        // 设置协作者
-        if (achievement.parents_id) {
-          setSelectedCollaboratorId(achievement.parents_id);
+        // 设置协作者 - 支持多个协作者
+        if (achievement.parents && achievement.parents.length > 0) {
+          // 从achievements_parents表获取的协作者信息
+          const loadedCollaborators = achievement.parents.map((parent: any) => ({
+            id: parent.id,
+            name: parent.full_name || parent.username
+          }));
+          setCollaborators(loadedCollaborators);
+        } else if (achievement.parents_ids && achievement.parents_ids.length > 0) {
+          // 从parents_ids数组获取协作者信息
+          const loadedCollaborators = achievement.parents_ids.map((parentId: string) => {
+            const user = collaboratorUsers.find(u => u.id === parentId);
+            return {
+              id: parentId,
+              name: user ? (user.full_name || user.username) : '未知用户'
+            };
+          });
+          setCollaborators(loadedCollaborators);
         }
         
         // 设置封面图片
@@ -575,7 +590,7 @@ const ProjectIntroPage: React.FC = () => {
     }
   };
 
-  // 添加协作者（下拉选择方式）
+  // 添加协作者（下拉选择方式 - 支持多选）
   const addCollaborator = () => {
     if (selectedCollaboratorId) {
       const selectedUser = collaboratorUsers.find(user => user.id === selectedCollaboratorId);
@@ -593,6 +608,11 @@ const ProjectIntroPage: React.FC = () => {
   // 删除协作者
   const removeCollaborator = (id: string) => {
     setCollaborators(collaborators.filter(c => c.id !== id));
+  };
+
+  // 获取选中的协作者ID数组
+  const getSelectedCollaboratorIds = (): string[] => {
+    return collaborators.map(c => c.id);
   };
 
   // 照片上传（封面图片，只处理第一张图片）
@@ -845,7 +865,8 @@ const ProjectIntroPage: React.FC = () => {
         cover_url: coverUrl,
         video_url: videoUrl,
         publisher_id: projectLeaderId || user.id, // 使用选中的项目负责人ID
-        instructor_id: selectedInstructorId || user.id // 使用选中的指导老师，如果没有选中则使用学生自己
+        instructor_id: selectedInstructorId || user.id, // 使用选中的指导老师，如果没有选中则使用学生自己
+        parents_ids: getSelectedCollaboratorIds() // 传递协作者ID数组
       };
 
       // 保存草稿
@@ -1054,7 +1075,7 @@ const ProjectIntroPage: React.FC = () => {
         video_url: finalVideoUrl,
         publisher_id: projectLeaderId || user.id, // 使用选中的项目负责人ID
         instructor_id: selectedInstructorId || user.id, // 使用选中的指导老师，如果没有选中则使用学生自己
-        parents_id: selectedCollaboratorId || null, // 添加协作者ID
+        parents_ids: getSelectedCollaboratorIds(), // 传递协作者ID数组
         status: 'pending' as const
       };
 
@@ -1062,8 +1083,12 @@ const ProjectIntroPage: React.FC = () => {
       let achievementId: string;
       
       if (isEditMode) {
-        // 更新成果
-        result = await AchievementService.updateAchievement(editingAchievementId, achievementData);
+        // 更新成果 - 传递协作者ID数组
+        const updateData = {
+          ...achievementData,
+          parents_ids: getSelectedCollaboratorIds() // 传递协作者ID数组用于更新
+        };
+        result = await AchievementService.updateAchievement(editingAchievementId, updateData);
         achievementId = editingAchievementId;
       } else {
         // 创建成果
@@ -1166,17 +1191,31 @@ const ProjectIntroPage: React.FC = () => {
 
   // 渲染协作者标签
   const renderCollaboratorTags = () => {
-    return collaborators.map(collaborator => (
-      <div key={collaborator.id} className="flex items-center bg-gray-100 px-3 py-1 rounded-full text-sm">
-        <span>{collaborator.name}</span>
-        <button 
-          onClick={() => removeCollaborator(collaborator.id)}
-          className="ml-2 text-text-muted hover:text-secondary"
-        >
-          <i className="fas fa-times"></i>
-        </button>
-      </div>
-    ));
+    return collaborators.map((collaborator, index) => {
+      const user = collaboratorUsers.find(u => u.id === collaborator.id);
+      return (
+        <div key={collaborator.id} className="flex items-center bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg text-sm">
+          <div className="flex items-center">
+            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium mr-2">
+              {collaborator.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <span className="font-medium text-gray-800">{collaborator.name}</span>
+              {user?.email && (
+                <span className="text-xs text-gray-500 ml-1">({user.email})</span>
+              )}
+            </div>
+          </div>
+          <button 
+            onClick={() => removeCollaborator(collaborator.id)}
+            className="ml-2 text-red-500 hover:text-red-700 transition-colors"
+            title="移除协作者"
+          >
+            <i className="fas fa-times-circle"></i>
+          </button>
+        </div>
+      );
+    });
   };
 
   // 渲染照片预览（只显示一张封面图片）
@@ -1390,7 +1429,14 @@ const ProjectIntroPage: React.FC = () => {
               
               {/* 第二行：协作者 */}
               <div className="mb-8">
-                <label className="block text-sm font-medium text-text-secondary mb-2">协作者</label>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  协作者 
+                  {collaborators.length > 0 && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      (已选择 {collaborators.length} 位协作者)
+                    </span>
+                  )}
+                </label>
                 <div className="flex space-x-2">
                   <select 
                     value={selectedCollaboratorId}
@@ -1399,7 +1445,7 @@ const ProjectIntroPage: React.FC = () => {
                   >
                     <option value="">请选择协作者</option>
                     {collaboratorUsers
-                      .filter(user => user.id !== projectLeaderId) // 排除当前用户和项目负责人
+                      .filter(user => user.id !== projectLeaderId && !collaborators.find(c => c.id === user.id)) // 排除项目负责人和已选择的协作者
                       .map(user => (
                       <option key={user.id} value={user.id}>
                         {user.full_name || user.username} ({user.email})
@@ -1408,15 +1454,24 @@ const ProjectIntroPage: React.FC = () => {
                   </select>
                   <button 
                     onClick={addCollaborator}
-                    className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                    className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                     disabled={!selectedCollaboratorId}
                   >
-                    <i className="fas fa-plus"></i>
+                    <i className="fas fa-plus mr-2"></i>
+                    添加协作者
                   </button>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {renderCollaboratorTags()}
-                </div>
+                {collaborators.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-600 mb-2">已选择的协作者：</p>
+                    <div className="flex flex-wrap gap-2">
+                      {renderCollaboratorTags()}
+                    </div>
+                  </div>
+                )}
+                {collaboratorUsers.filter(user => user.id !== projectLeaderId).length === collaborators.length && collaborators.length > 0 && (
+                  <p className="mt-2 text-xs text-gray-500">已添加所有可选的协作者</p>
+                )}
               </div>
 
               {/* 第三行：指导老师 */}

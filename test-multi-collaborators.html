@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多协作者功能测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        #results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>多协作者功能测试 - achievements_parents表</h1>
+    
+    <div class="test-section">
+        <h3>测试说明</h3>
+        <p>本页面用于验证 achievements_parents 表的多协作者插入功能。</p>
+        <p><strong>表结构：</strong></p>
+        <ul>
+            <li>id (BIGSERIAL): 自增主键，从1开始</li>
+            <li>achievement_id (UUID): 成果ID，来自 achievements.id</li>
+            <li>parent_id (UUID): 协作者用户ID，来自 users.id</li>
+            <li>created_at (TIMESTAMPTZ): 自动生成时间戳</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>测试参数</h3>
+        <label for="achievementId">成果ID (achievement_id):</label><br>
+        <input type="text" id="achievementId" placeholder="输入成果UUID" size="40" value="test-achievement-uuid">
+        <br><br>
+        
+        <label for="collaboratorIds">协作者ID列表 (parent_id，逗号分隔):</label><br>
+        <input type="text" id="collaboratorIds" placeholder="user-uuid-1,user-uuid-2,user-uuid-3" size="60" value="user-1,user-2,user-3">
+        <br><br>
+        
+        <button onclick="testInsertCollaborators()">🧪 测试插入协作者</button>
+        <button onclick="testQueryCollaborators()">📋 查询协作者</button>
+        <button onclick="clearResults()">🗑️ 清空结果</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://vntvrdkjtfdcnvwgrubo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudHZyZGtqdGZkY252d2dydWJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU4MTI5MjcsImV4cCI6MjA1MTM4ODkyN30.5xflIIFviYqA8Fh_T3mB_2qTm0_Hp3s2_BhZqW7zJ8g';
+
+        class SupabaseClient {
+            constructor(url, key) {
+                this.url = url;
+                this.key = key;
+            }
+
+            from(table) {
+                return new TableBuilder(this, table);
+            }
+
+            async request(method, url, options = {}) {
+                const response = await fetch(`${this.url}/rest/v1${url}`, {
+                    method,
+                    headers: {
+                        'apikey': this.key,
+                        'Authorization': `Bearer ${this.key}`,
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(`HTTP ${response.status}: ${error.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                return { data, error: null };
+            }
+        }
+
+        class TableBuilder {
+            constructor(client, table) {
+                this.client = client;
+                this.table = table;
+                this.query = {
+                    select: '*',
+                    filter: [],
+                    orderBy: null
+                };
+            }
+
+            select(columns = '*') {
+                this.query.select = columns;
+                return this;
+            }
+
+            insert(data) {
+                return this.client.request('POST', `/${this.table}`, {
+                    body: JSON.stringify(data)
+                });
+            }
+
+            eq(column, value) {
+                this.query.filter.push(`${column}=eq.${value}`);
+                return this;
+            }
+
+            order(column, options = {}) {
+                const direction = options.ascending ? 'asc' : 'desc';
+                this.query.orderBy = `${column}.${direction}`;
+                return this;
+            }
+
+            async get() {
+                let url = `/${this.table}?select=${this.query.select}`;
+                
+                if (this.query.filter.length > 0) {
+                    url += '&' + this.query.filter.join('&');
+                }
+                
+                if (this.query.orderBy) {
+                    url += `&order=${this.query.orderBy}`;
+                }
+
+                return this.client.request('GET', url);
+            }
+
+            async single() {
+                const result = await this.get();
+                return {
+                    data: result.data?.[0] || null,
+                    error: result.error
+                };
+            }
+        }
+
+        const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            results.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        async function testInsertCollaborators() {
+            try {
+                log('🚀 开始测试多协作者插入功能...', 'info');
+
+                const achievementId = document.getElementById('achievementId').value.trim();
+                const collaboratorsInput = document.getElementById('collaboratorIds').value.trim();
+
+                if (!achievementId) {
+                    log('❌ 请输入成果ID', 'error');
+                    return;
+                }
+
+                if (!collaboratorsInput) {
+                    log('❌ 请输入协作者ID列表', 'error');
+                    return;
+                }
+
+                const collaboratorIds = collaboratorsInput.split(',').map(id => id.trim()).filter(id => id);
+
+                if (collaboratorIds.length === 0) {
+                    log('❌ 协作者ID列表不能为空', 'error');
+                    return;
+                }
+
+                log(`📋 成果ID: ${achievementId}`, 'info');
+                log(`👥 协作者ID数量: ${collaboratorIds.length}`, 'info');
+                log(`👥 协作者ID列表: [${collaboratorIds.join(', ')}]`, 'info');
+
+                // 准备插入数据 - 每个协作者创建一行记录
+                const insertData = collaboratorIds.map(parentId => ({
+                    achievement_id: achievementId,
+                    parent_id: parentId
+                }));
+
+                log(`📝 准备插入 ${insertData.length} 条记录到 achievements_parents 表...`, 'info');
+
+                insertData.forEach((item, index) => {
+                    log(`   记录${index + 1}: achievement_id=${item.achievement_id}, parent_id=${item.parent_id}`, 'info');
+                });
+
+                // 执行插入
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .insert(insertData)
+                    .select('*')
+                    .order('id');
+
+                if (error) {
+                    log(`❌ 插入失败: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ 成功插入 ${data.length} 条记录！`, 'success');
+
+                // 显示插入的结果
+                data.forEach((record, index) => {
+                    log(`   ✅ 记录${index + 1}: id=${record.id}, achievement_id=${record.achievement_id}, parent_id=${record.parent_id}, created_at=${record.created_at}`, 'success');
+                });
+
+                // 验证ID是否从1开始自动递增
+                if (data.length > 0) {
+                    const firstId = data[0].id;
+                    log(`🎯 achievements_parents 表的ID从 ${firstId} 开始`, 'success');
+                    
+                    if (data.length > 1) {
+                        const lastId = data[data.length - 1].id;
+                        log(`📊 插入的记录ID范围: ${firstId} - ${lastId}`, 'success');
+                    }
+                }
+
+                log('🎉 多协作者插入功能测试完成！', 'success');
+
+            } catch (error) {
+                log(`❌ 测试过程中发生错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testQueryCollaborators() {
+            try {
+                log('🔍 开始查询协作者数据...', 'info');
+
+                const achievementId = document.getElementById('achievementId').value.trim();
+
+                if (!achievementId) {
+                    log('❌ 请输入成果ID', 'error');
+                    return;
+                }
+
+                // 查询指定成果的所有协作者
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .select(`
+                        *,
+                        parent:users!parent_id (id, username, email, full_name)
+                    `)
+                    .eq('achievement_id', achievementId)
+                    .order('id');
+
+                if (error) {
+                    log(`❌ 查询失败: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    log(`📋 成果 ${achievementId} 没有找到协作者`, 'info');
+                    return;
+                }
+
+                log(`📋 找到 ${data.length} 个协作者：`, 'info');
+
+                data.forEach((record, index) => {
+                    const parent = record.parent;
+                    log(`   👤 协作者${index + 1}: ${parent?.full_name || parent?.username || '未知'} (${parent?.email || '无邮箱'}) - ID: ${record.parent_id}`, 'info');
+                });
+
+                log('🎉 协作者查询功能测试完成！', 'success');
+
+            } catch (error) {
+                log(`❌ 查询过程中发生错误: ${error.message}`, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            log('🧹 结果已清空，可以开始新的测试', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.addEventListener('load', () => {
+            log('🚀 多协作者功能测试页面已加载', 'info');
+            log('📝 请输入测试参数，然后点击测试按钮', 'info');
+        });
+    </script>
+</body>
+</html>
