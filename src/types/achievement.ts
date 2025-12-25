@@ -110,6 +110,12 @@ export interface AchievementParent {
   achievement_id: string;   // 成果UUID
   parent_id: string;       // 协作者用户UUID
   created_at: string;
+  parent?: {             // 关联的用户信息（查询时包含）
+    id: string;
+    username: string;
+    email: string;
+    full_name?: string;
+  };
 }
 
 // 成果类型选项

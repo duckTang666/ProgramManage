@@ -92,7 +92,7 @@ export class AchievementService {
         return { success: true, data: ACHIEVEMENT_TYPES };
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching achievement types:', error);
       return { success: false, message: '获取成果类型失败' };
@@ -115,7 +115,7 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching users:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取用户列表失败' };
@@ -138,7 +138,7 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching users for collaborators:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取协作用户列表失败' };
@@ -162,7 +162,7 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching students:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取学生列表失败' };
@@ -369,25 +369,42 @@ export class AchievementService {
     parentIds: string[]
   ): Promise<{ success: boolean; data?: AchievementParent[]; message?: string }> {
     try {
-      console.log('🔗 添加协作者关系 - 成果ID:', achievementId);
-      console.log('🔗 添加协作者关系 - 协作者ID列表:', parentIds);
-      console.log('🔗 添加协作者关系 - 协作者数量:', parentIds.length);
+      console.log('🔗 开始添加协作者关系');
+      console.log('📋 成果ID (achievement_id):', achievementId);
+      console.log('👥 协作者ID列表 (parent_id):', parentIds);
+      console.log('🔢 协作者数量:', parentIds.length);
 
-      // 准备插入数据
-      const insertData = parentIds.map(parentId => ({
-        achievement_id: achievementId,  // 新创建的成果UUID
-        parent_id: parentId             // 协作者用户UUID
+      // 过滤掉空的ID
+      const validParentIds = parentIds.filter(id => id && id.trim() !== '');
+      
+      if (validParentIds.length === 0) {
+        console.log('⚠️ 没有有效的协作者ID，跳过插入');
+        return { success: true, data: [], message: '没有协作者需要添加' };
+      }
+
+      // 准备插入数据 - 每个协作者创建一行记录
+      const insertData = validParentIds.map(parentId => ({
+        achievement_id: achievementId,  // 成果UUID，来自achievements表的id
+        parent_id: parentId             // 协作者用户UUID，来自achievements表的parent_id数组元素
       }));
 
-      console.log('📝 准备插入achievements_parents表的数据:');
+      console.log('📝 准备插入achievements_parents表的数据结构:');
+      console.log('📋 表结构说明:');
+      console.log('   - id: BIGSERIAL (自增主键，从1开始)');
+      console.log('   - achievement_id: UUID (外键 → achievements.id)');
+      console.log('   - parent_id: UUID (外键 → users.id)');
+      console.log('   - created_at: TIMESTAMPTZ (自动生成)');
+      
       insertData.forEach((item, index) => {
-        console.log(`📝 记录${index + 1}:`, {
+        console.log(`📝 准备插入记录${index + 1}:`, {
+          id: '自动生成 (1, 2, 3...)',
           achievement_id: item.achievement_id,
           parent_id: item.parent_id,
-          created_at: '自动生成'
+          created_at: 'NOW() 自动生成'
         });
       });
 
+      // 插入数据到achievements_parents表
       const { data, error } = await supabase
         .from('achievements_parents')
         .insert(insertData)
@@ -395,11 +412,16 @@ export class AchievementService {
         .order('id'); // 按自增ID排序
 
       if (error) {
-        console.error('❌ 添加协作者失败:', error);
-        return { success: false, message: `添加协作者失败: ${error.message}` };
+        console.error('❌ achievements_parents表插入失败:', error);
+        return { 
+          success: false, 
+          message: `添加协作者失败: ${error.message}` 
+        };
       }
 
-      console.log('✅ 协作者关系添加成功，插入结果:');
+      console.log(`✅ 成功插入 ${validParentIds.length} 个协作者记录到achievements_parents表`);
+      
+      // 显示实际插入的结果
       data?.forEach((item, index) => {
         console.log(`✅ 插入成功记录${index + 1}:`, {
           id: item.id,                    // 自增ID：1, 2, 3...
@@ -408,13 +430,16 @@ export class AchievementService {
           created_at: item.created_at
         });
       });
+
+      console.log('🎯 协作者关系添加完成');
+      console.log(`📊 成果 ${achievementId} 现在有 ${data?.length || 0} 个协作者`);
       
       return { success: true, data: data as AchievementParent[] };
     } catch (error) {
-      console.error('❌ addAchievementParents异常:', error);
+      console.error('❌ addAchievementParents发生异常:', error);
       return { 
         success: false, 
-        message: error instanceof Error ? error.message : '添加协作者失败' 
+        message: error instanceof Error ? error.message : '添加协作者时发生未知错误' 
       };
     }
   }
@@ -519,7 +544,7 @@ export class AchievementService {
 
       // 处理数据格式
       const achievements = data?.map(item => {
-        const achievement = item.achievement;
+        const achievement = item.achievement as any;
         achievement.status = this.convertStatusFromNumber(achievement.status as AchievementStatusCode);
         return achievement as AchievementWithUsers;
       }) as AchievementWithUsers[] || [];
@@ -578,7 +603,7 @@ export class AchievementService {
         return { success: true, data: achievement };
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching achievement by ID:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取成果详情失败' };
@@ -716,22 +741,46 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 总是在achievements_parents表中创建至少一行记录
+      // 处理协作者关系 - 在achievements_parents表中创建记录
       if (data) {
         let parentIdsToInsert: string[] = [];
         
         if (parents_ids && parents_ids.length > 0) {
-          // 如果有协作者，使用选中的协作者
+          // 如果有协作者，将achievements表的parent_id数组拆分为多行
+          console.log('👥 处理多个协作者:');
+          console.log('📋 成果ID:', data.id);
+          console.log('👥 协作者ID数组:', parents_ids);
+          console.log('🔄 将parent_id数组转换为achievements_parents表的多行记录');
+          
           parentIdsToInsert = parents_ids;
+          
+          console.log(`📝 准备为 ${parentIdsToInsert.length} 个协作者创建 achievements_parents 记录`);
+          parentIdsToInsert.forEach((parentId, index) => {
+            console.log(`   协作者${index + 1}: ${parentId}`);
+          });
         } else {
-          // 如果没有协作者，使用固定的默认值
-          parentIdsToInsert = ['31f21c59-f3c4-44c9-91e8-b72f8891bce7'];
+          // 如果没有协作者，不创建achievements_parents记录
+          console.log('📝 没有协作者，跳过achievements_parents表插入');
+          parentIdsToInsert = [];
         }
         
+        // 调用addAchievementParents方法，将：
+        // - achievements表的id作为achievement_id
+        // - achievements表的parent_id数组元素作为parent_id
+        // - 在achievements_parents表中创建多行（每行一个协作者）
+        // - achievements_parents.id自动从1开始递增
+        // - created_at自动生成
         const parentResult = await this.addAchievementParents(data.id, parentIdsToInsert);
-        if (!parentResult.success) {
-          console.warn('Failed to add achievement parents:', parentResult.message);
-          // 不阻止成果创建，但记录警告
+        
+        if (parentResult.success) {
+          console.log(`✅ 成果协作者关系创建成功，共 ${parentResult.data?.length || 0} 条记录`);
+          console.log('📊 achievements_parents表记录详情:');
+          parentResult.data?.forEach((record, index) => {
+            console.log(`   记录${index + 1}: id=${record.id}, achievement_id=${record.achievement_id}, parent_id=${record.parent_id}`);
+          });
+        } else {
+          console.error('❌ 成果协作者关系创建失败:', parentResult.message);
+          // 不阻止成果创建，但记录错误
         }
       }
 
@@ -746,7 +795,7 @@ export class AchievementService {
         }
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error creating achievement:', error);
       return { success: false, message: error instanceof Error ? error.message : '创建成果失败' };
@@ -766,7 +815,7 @@ export class AchievementService {
       }
 
       // 移除 updated_at 字段，因为数据库表中没有这个字段
-      const { updated_at, ...updateFields } = finalUpdateData;
+      const { updated_at, parents_ids, ...updateFields } = finalUpdateData;
 
       const { data, error } = await supabase
         .from('achievements')
@@ -782,12 +831,43 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
+      // 处理协作者关系更新（如果有parent_ids字段在更新数据中）
+      if (data && parents_ids !== undefined) {
+        console.log('🔄 更新成果协作者关系:');
+        console.log('📋 成果ID:', id);
+        console.log('👥 新协作者ID列表:', parents_ids);
+        
+        let parentIdsToUpdate: string[] = [];
+        
+        if (parents_ids && parents_ids.length > 0) {
+          // 如果有新协作者，更新协作者关系
+          parentIdsToUpdate = parents_ids;
+          console.log(`🔄 准备更新 ${parentIdsToUpdate.length} 个协作者`);
+        } else {
+          // 如果没有协作者，删除所有现有协作者
+          parentIdsToUpdate = [];
+          console.log('🗑️ 删除所有协作者关系');
+        }
+        
+        // 使用updateAchievementParents方法：先删除现有关系，再添加新关系
+        const parentResult = await this.updateAchievementParents(id, parentIdsToUpdate);
+        
+        if (parentResult.success) {
+          console.log(`✅ 成果协作者关系更新成功，共 ${parentResult.data?.length || 0} 条记录`);
+          // 将协作者信息附加到返回数据中
+          const parentUsers = parentResult.data?.map(item => item.parent).filter(Boolean) || [];
+          (data as any).parents = parentUsers;
+        } else {
+          console.error('❌ 成果协作者关系更新失败:', parentResult.message);
+        }
+      }
+
       // 转换数据中的数字状态为字符串，以便前端使用
       if (data && data.status) {
         data.status = this.convertStatusFromNumber(data.status as AchievementStatusCode);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error updating achievement:', error);
       return { success: false, message: error instanceof Error ? error.message : '更新成果失败' };
@@ -817,22 +897,33 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 总是在achievements_parents表中创建至少一行记录
+      // 处理协作者关系 - 草稿也支持协作者
       if (data) {
         let parentIdsToInsert: string[] = [];
         
         if (parents_ids && parents_ids.length > 0) {
-          // 如果有协作者，使用选中的协作者
+          // 如果有协作者，将parent_id数组拆分为多行记录
+          console.log('📝 草稿协作者处理:');
+          console.log('📋 草稿成果ID:', data.id);
+          console.log('👥 草稿协作者ID数组:', parents_ids);
+          
           parentIdsToInsert = parents_ids;
+          
+          console.log(`🔄 为草稿准备创建 ${parentIdsToInsert.length} 个协作者记录`);
         } else {
-          // 如果没有协作者，使用固定的默认值
-          parentIdsToInsert = ['31f21c59-f3c4-44c9-91e8-b72f8891bce7'];
+          // 如果没有协作者，不创建记录
+          console.log('📝 草稿没有协作者，跳过achievements_parents表插入');
+          parentIdsToInsert = [];
         }
         
+        // 为草稿创建协作者关系
         const parentResult = await this.addAchievementParents(data.id, parentIdsToInsert);
-        if (!parentResult.success) {
-          console.warn('Failed to add achievement parents for draft:', parentResult.message);
-          // 不阻止草稿保存，但记录警告
+        
+        if (parentResult.success) {
+          console.log(`✅ 草稿协作者关系创建成功，共 ${parentResult.data?.length || 0} 条记录`);
+        } else {
+          console.warn('❌ 草稿协作者关系创建失败:', parentResult.message);
+          // 不阻止草稿保存，但记录错误
         }
       }
 
@@ -847,7 +938,7 @@ export class AchievementService {
         }
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error saving draft:', error);
       return { success: false, message: error instanceof Error ? error.message : '保存草稿失败' };
@@ -876,7 +967,7 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching user achievements:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取成果列表失败' };
@@ -1323,7 +1414,7 @@ export class AchievementService {
   }
 
   // 获取成果的最新审批记录
-  static async getLatestApprovalRecord(achievementId: string): Promise<{ success: boolean; data?: { feedback: string; reviewed_at: string; reviewer?: { username: string } }; message?: string }> {
+  static async getLatestApprovalRecord(achievementId: string): Promise<{ success: boolean; data?: { feedback: string; reviewed_at: string; reviewer?: { username: any } }; message?: string }> {
     try {
       const { data, error } = await supabase
         .from('approval_records')
@@ -1348,7 +1439,7 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      return { success: true, data };
+      return { success: true, data: data as { feedback: any; reviewed_at: any; reviewer?: { username: any } } | undefined };
     } catch (error) {
       console.error('Error fetching latest approval record:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取审批记录失败' };
