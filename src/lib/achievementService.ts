@@ -1072,12 +1072,6 @@ export class AchievementService {
             email,
             full_name
           ),
-          parent:users!parents_id (
-            id,
-            username,
-            email,
-            full_name
-          ),
           achievement_type:achievement_types (
             id,
             name
@@ -1126,9 +1120,22 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
+      // 为每个成果获取协作者信息
+      const achievementsWithParents = await Promise.all(
+        (data as AchievementWithUsers[] || []).map(async (achievement) => {
+          // 从achievements_parents表获取协作者信息
+          const parentResult = await this.getAchievementParents(achievement.id);
+          if (parentResult.success && parentResult.data) {
+            const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+            achievement.parents = parents;
+          }
+          return achievement;
+        })
+      );
+
       return { 
         success: true, 
-        data: data as AchievementWithUsers[] || [],
+        data: achievementsWithParents || [],
         total: count || 0 
       };
     } catch (error) {

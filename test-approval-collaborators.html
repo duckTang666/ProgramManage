@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审批页面多协作者显示测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        .warning { color: orange; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        #results { margin-top: 20px; }
+        .achievement-card { 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin: 10px 0; 
+            background: #f9f9f9; 
+        }
+        .collaborator-tag { 
+            display: inline-block; 
+            background: #e3f2fd; 
+            border: 1px solid #90caf9; 
+            border-radius: 16px; 
+            padding: 4px 12px; 
+            margin: 2px; 
+            font-size: 14px; 
+        }
+        .collaborator-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1976d2;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>教师端成果审批页面 - 多协作者显示测试</h1>
+    
+    <div class="test-section">
+        <h3>功能说明</h3>
+        <p>本页面用于测试教师端成果审批页面的多协作者显示功能。</p>
+        <p><strong>实现功能：</strong></p>
+        <ul>
+            <li>✅ 修改 <code>getAchievementsForInstructor</code> 方法，包含协作者信息</li>
+            <li>✅ 在成果列表中添加"协作者"列</li>
+            <li>✅ 在成果预览模态框中显示多个协作者</li>
+            <li>✅ 协作者信息从 <code>achievements_parents</code> 表获取</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>测试参数</h3>
+        <label for="instructorId">教师ID (instructor_id):</label><br>
+        <input type="text" id="instructorId" placeholder="输入教师UUID" size="40" value="">
+        <br><br>
+        
+        <button onclick="testGetAchievements()">🔍 测试获取成果列表</button>
+        <button onclick="testGetAchievementWithParents()">👥 测试获取单个成果+协作者</button>
+        <button onclick="clearResults()">🗑️ 清空结果</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://vntvrdkjtfdcnvwgrubo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudHZyZGtqdGZkY252d2dydWJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU4MTI5MjcsImV4cCI6MjA1MTM4ODkyN30.5xflIIFviYqA8Fh_T3mB_2qTm0_Hp3s2_BhZqW7zJ8g';
+
+        // 简化的Supabase客户端
+        class SupabaseClient {
+            constructor(url, key) {
+                this.url = url;
+                this.key = key;
+            }
+
+            from(table) {
+                return new TableBuilder(this, table);
+            }
+
+            async request(method, url, options = {}) {
+                const response = await fetch(`${this.url}/rest/v1${url}`, {
+                    method,
+                    headers: {
+                        'apikey': this.key,
+                        'Authorization': `Bearer ${this.key}`,
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(`HTTP ${response.status}: ${error.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                return { data, error: null };
+            }
+        }
+
+        class TableBuilder {
+            constructor(client, table) {
+                this.client = client;
+                this.table = table;
+                this.query = {
+                    select: '*',
+                    filter: [],
+                    orderBy: null
+                };
+            }
+
+            select(columns = '*') {
+                this.query.select = columns;
+                return this;
+            }
+
+            eq(column, value) {
+                this.query.filter.push(`${column}=eq.${value}`);
+                return this;
+            }
+
+            order(column, options = {}) {
+                const direction = options.ascending ? 'asc' : 'desc';
+                this.query.orderBy = `${column}.${direction}`;
+                return this;
+            }
+
+            async get() {
+                let url = `/${this.table}?select=${this.query.select}`;
+                
+                if (this.query.filter.length > 0) {
+                    url += '&' + this.query.filter.join('&');
+                }
+                
+                if (this.query.orderBy) {
+                    url += `&order=${this.query.orderBy}`;
+                }
+
+                return this.client.request('GET', url);
+            }
+
+            async single() {
+                const result = await this.get();
+                return {
+                    data: result.data?.[0] || null,
+                    error: result.error
+                };
+            }
+        }
+
+        const supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            results.appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function renderAchievement(achievement) {
+            const collaboratorHtml = achievement.parents && achievement.parents.length > 0 
+                ? achievement.parents.map(parent => `
+                    <span class="collaborator-tag">
+                        <span class="collaborator-avatar">${(parent.full_name || parent.username || '未知').charAt(0).toUpperCase()}</span>
+                        ${parent.full_name || parent.username}
+                        ${parent.email ? `(${parent.email})` : ''}
+                    </span>
+                `).join('')
+                : '<span class="warning">无协作者</span>';
+
+            return `
+                <div class="achievement-card">
+                    <h4>📁 ${achievement.title}</h4>
+                    <p><strong>类型:</strong> ${achievement.achievement_type?.name || '未知'}</p>
+                    <p><strong>发布学生:</strong> ${achievement.publisher?.full_name || achievement.publisher?.username || '未知'} (${achievement.publisher?.email || '无邮箱'})</p>
+                    <p><strong>指导老师:</strong> ${achievement.instructor?.full_name || achievement.instructor?.username || '未知'}</p>
+                    <p><strong>协作者:</strong></p>
+                    <div>${collaboratorHtml}</div>
+                    <p><strong>状态:</strong> ${getStatusText(achievement.status)}</p>
+                    <p><strong>分数:</strong> ${achievement.score !== null ? achievement.score + '分' : '未评分'}</p>
+                    <p><strong>提交时间:</strong> ${new Date(achievement.created_at).toLocaleString('zh-CN')}</p>
+                </div>
+            `;
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 0: return '草稿';
+                case 1: return '待审核';
+                case 2: return '已通过';
+                case 3: return '已拒绝';
+                default: return '未知状态';
+            }
+        }
+
+        async function testGetAchievements() {
+            try {
+                log('🔍 开始测试获取成果列表（包含协作者信息）...', 'info');
+
+                const instructorId = document.getElementById('instructorId').value.trim();
+
+                if (!instructorId) {
+                    log('❌ 请输入教师ID', 'error');
+                    return;
+                }
+
+                log(`👨‍🏫 教师ID: ${instructorId}`, 'info');
+
+                // 步骤1：获取教师的基本成果列表
+                const { data: achievements, error: basicError } = await supabase
+                    .from('achievements')
+                    .select(`
+                        *,
+                        publisher:users!publisher_id (
+                            id,
+                            username,
+                            email,
+                            full_name,
+                            class_id
+                        ),
+                        instructor:users!instructor_id (
+                            id,
+                            username,
+                            email,
+                            full_name
+                        ),
+                        achievement_type:achievement_types (
+                            id,
+                            name
+                        )
+                    `)
+                    .eq('instructor_id', instructorId)
+                    .order('created_at', { ascending: false });
+
+                if (basicError) {
+                    log(`❌ 基础成果查询失败: ${basicError.message}`, 'error');
+                    return;
+                }
+
+                if (!achievements || achievements.length === 0) {
+                    log('📋 该教师没有相关成果', 'info');
+                    return;
+                }
+
+                log(`📊 找到 ${achievements.length} 个基础成果`, 'info');
+
+                // 步骤2：为每个成果获取协作者信息
+                const achievementsWithParents = await Promise.all(
+                    achievements.map(async (achievement) => {
+                        // 从achievements_parents表获取协作者信息
+                        const { data: parentRelations, error: parentError } = await supabase
+                            .from('achievements_parents')
+                            .select(`
+                                *,
+                                parent:users!parent_id (id, username, email, full_name)
+                            `)
+                            .eq('achievement_id', achievement.id)
+                            .order('id');
+
+                        if (parentError) {
+                            log(`⚠️ 获取成果 ${achievement.id} 的协作者失败: ${parentError.message}`, 'warning');
+                            achievement.parents = [];
+                        } else {
+                            const parents = parentRelations?.map(item => item.parent).filter(Boolean) || [];
+                            achievement.parents = parents;
+                            log(`👥 成果 "${achievement.title}" 有 ${parents.length} 个协作者`, 'info');
+                        }
+
+                        return achievement;
+                    })
+                );
+
+                // 显示结果
+                log('✅ 成果列表获取成功，开始渲染...', 'success');
+
+                const resultsDiv = document.getElementById('results');
+                const renderDiv = document.createElement('div');
+                renderDiv.innerHTML = `
+                    <h3>📋 成果列表（含协作者信息）</h3>
+                    ${achievementsWithParents.map(renderAchievement).join('')}
+                `;
+                resultsDiv.appendChild(renderDiv);
+
+                log(`🎉 成功渲染 ${achievementsWithParents.length} 个成果的协作者信息！`, 'success');
+
+            } catch (error) {
+                log(`❌ 测试过程中发生错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetAchievementWithParents() {
+            try {
+                log('🔍 开始测试单个成果+协作者查询...', 'info');
+
+                const instructorId = document.getElementById('instructorId').value.trim();
+
+                if (!instructorId) {
+                    log('❌ 请输入教师ID', 'error');
+                    return;
+                }
+
+                // 首先获取一个成果ID
+                const { data: achievements, error: listError } = await supabase
+                    .from('achievements')
+                    .select('id, title')
+                    .eq('instructor_id', instructorId)
+                    .limit(1);
+
+                if (listError || !achievements || achievements.length === 0) {
+                    log('❌ 未找到相关成果', 'error');
+                    return;
+                }
+
+                const testAchievement = achievements[0];
+                log(`📋 测试成果: ${testAchievement.title} (ID: ${testAchievement.id})`, 'info');
+
+                // 查询成果详情（模拟 getAchievementWithUsersById）
+                const { data: achievement, error: detailError } = await supabase
+                    .from('achievements')
+                    .select(`
+                        *,
+                        publisher:users!publisher_id (id, username, email, full_name),
+                        instructor:users!instructor_id (id, username, email, full_name),
+                        achievement_type:achievement_types (id, name)
+                    `)
+                    .eq('id', testAchievement.id)
+                    .single();
+
+                if (detailError || !achievement) {
+                    log(`❌ 获取成果详情失败: ${detailError?.message || '未知错误'}`, 'error');
+                    return;
+                }
+
+                // 获取协作者信息
+                const { data: parentRelations, error: parentError } = await supabase
+                    .from('achievements_parents')
+                    .select(`
+                        *,
+                        parent:users!parent_id (id, username, email, full_name)
+                    `)
+                    .eq('achievement_id', achievement.id)
+                    .order('id');
+
+                if (parentError) {
+                    log(`❌ 获取协作者失败: ${parentError.message}`, 'error');
+                    return;
+                }
+
+                const parents = parentRelations?.map(item => item.parent).filter(Boolean) || [];
+                achievement.parents = parents;
+
+                log(`👥 成果有 ${parents.length} 个协作者`, 'info');
+
+                if (parents.length > 0) {
+                    parents.forEach((parent, index) => {
+                        log(`   👤 协作者${index + 1}: ${parent.full_name || parent.username} (${parent.email || '无邮箱'}) - ID: ${parent.id}`, 'info');
+                    });
+                }
+
+                // 渲染单个成果
+                const resultsDiv = document.getElementById('results');
+                const renderDiv = document.createElement('div');
+                renderDiv.innerHTML = `
+                    <h3>📋 单个成果详情（含协作者）</h3>
+                    ${renderAchievement(achievement)}
+                `;
+                resultsDiv.appendChild(renderDiv);
+
+                log('✅ 单个成果+协作者查询测试成功！', 'success');
+
+            } catch (error) {
+                log(`❌ 测试过程中发生错误: ${error.message}`, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            log('🧹 结果已清空，可以开始新的测试', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.addEventListener('load', () => {
+            log('🚀 审批页面多协作者显示测试页面已加载', 'info');
+            log('📝 请输入教师ID，然后点击测试按钮', 'info');
+            log('💡 提示：可以从用户表中获取教师ID（role=2）', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -689,6 +689,7 @@ const AchievementApprovalPage: React.FC = () => {
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">成果名称</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">类型</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">学生姓名</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">协作者</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">指导老师</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">状态</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary">分数</th>
@@ -699,14 +700,14 @@ const AchievementApprovalPage: React.FC = () => {
                   <tbody>
                     {isLoading ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-text-muted">
+                        <td colSpan={9} className="py-8 text-center text-text-muted">
                           <i className="fas fa-spinner fa-spin mr-2"></i>
                           加载中...
                         </td>
                       </tr>
                     ) : achievements.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-text-muted">
+                        <td colSpan={9} className="py-8 text-center text-text-muted">
                           <i className="fas fa-inbox text-4xl mb-2"></i>
                           <p>暂无{statusFilter === 'pending' ? '待审批' : '相关'}成果</p>
                         </td>
@@ -735,6 +736,29 @@ const AchievementApprovalPage: React.FC = () => {
                               <div>{achievement.publisher?.full_name || achievement.publisher?.username}</div>
                               <div className="text-xs text-text-muted">{achievement.publisher?.email}</div>
                             </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-text-primary">
+                            {achievement.parents && achievement.parents.length > 0 ? (
+                              <div className="space-y-1">
+                                {achievement.parents.slice(0, 2).map((parent) => (
+                                  <div key={parent.id} className="flex items-center space-x-1">
+                                    <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-medium">
+                                      {(parent.full_name || parent.username || '未知').charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="truncate max-w-[100px]" title={parent.full_name || parent.username}>
+                                      {parent.full_name || parent.username}
+                                    </span>
+                                  </div>
+                                ))}
+                                {achievement.parents.length > 2 && (
+                                  <div className="text-xs text-text-muted">
+                                    +{achievement.parents.length - 2} 更多...
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-text-muted">无协作者</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm text-text-primary">
                             {achievement.instructor?.full_name || achievement.instructor?.username || '未指定'}
@@ -918,12 +942,26 @@ const AchievementApprovalPage: React.FC = () => {
                           {new Date(currentAchievement.created_at).toLocaleString('zh-CN')}
                         </p>
                       </div>
-                      {currentAchievement.parent?.username && (
-                        <div>
-                          <p className="text-sm text-text-muted mb-1">合作伙伴</p>
-                          <p className="text-text-primary">
-                            {currentAchievement.parent.username}
-                          </p>
+                      {currentAchievement.parents && currentAchievement.parents.length > 0 && (
+                        <div className="md:col-span-2">
+                          <p className="text-sm text-text-muted mb-1">协作者</p>
+                          <div className="space-y-1">
+                            {currentAchievement.parents.map((parent, index) => (
+                              <div key={parent.id} className="flex items-center space-x-2 text-sm">
+                                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-medium">
+                                  {(parent.full_name || parent.username || '未知').charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-text-primary font-medium">
+                                  {parent.full_name || parent.username}
+                                </span>
+                                {parent.email && (
+                                  <span className="text-text-muted text-xs">
+                                    ({parent.email})
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
