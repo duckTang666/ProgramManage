@@ -321,11 +321,9 @@ const LoginPage: React.FC = () => {
                 <i className="fas fa-graduation-cap text-white text-2xl"></i>
               </div>
               <div className="text-left">
-                <h1 className="text-xl font-bold text-text-primary">河北师范大学</h1>
-                <p className="text-sm text-text-muted">软件学院</p>
+                <h1 className="text-xl font-bold text-text-primary">软件学院</h1>
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-text-primary mb-2">软院项目通</h2>
             <p className="text-text-muted">欢迎登录项目管理平台</p>
           </div>
 
@@ -501,7 +499,7 @@ const LoginPage: React.FC = () => {
         {/* 版权信息 */}
         <div className="text-center mt-8">
           <p className="text-text-muted text-sm">
-            © 2024 河北师范大学软件学院
+            © 2025 软件学院
           </p>
           <p className="text-text-muted text-xs mt-1">
             软院项目通 v1.0

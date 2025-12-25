@@ -66,7 +66,7 @@ const AdminHomePage: React.FC = () => {
               <i className="fas fa-user-shield text-white text-xl"></i>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-text-primary">软院项目通</h1>
+             <h1 className="text-lg font-bold text-text-primary">软院项目通</h1>
               <p className="text-xs text-text-muted">管理员后台</p>
             </div>
           </div>

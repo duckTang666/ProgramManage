@@ -296,8 +296,8 @@ const AchievementViewPage: React.FC = () => {
                 <i className="fas fa-graduation-cap text-white text-xl"></i>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">河北师范大学</h1>
-                <p className="text-xs text-text-muted">软件学院</p>
+                <h1 className="text-lg font-bold text-text-primary">软件学院</h1>
+                <p className="text-xs text-text-muted">软院项目通</p>
               </div>
             </div>
           </div>
