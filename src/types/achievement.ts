@@ -41,7 +41,7 @@ export interface AchievementDB {
   score?: number;
   publisher_id: string;
   instructor_id: string;
-  parents_id?: string; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
+  parents_id?: string[]; // PostgreSQL uuid[]数组类型，存储多个协作者ID
   created_at: string;
   updated_at?: string;
 }
@@ -58,8 +58,8 @@ export interface Achievement {
   score?: number;
   publisher_id: string;
   instructor_id: string;
-  parents_id?: string; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
-  parents_ids?: string[]; // 解析后的协作者ID数组
+  parents_id?: string[]; // PostgreSQL uuid[]数组类型
+  parents_ids?: string[]; // 为了兼容性保留的协作者ID数组
   created_at: string;
   updated_at?: string;
   attachments?: AchievementAttachment[];
@@ -72,9 +72,9 @@ export interface CreateAchievementRequest {
   type_id: string;
   cover_url?: string;
   video_url?: string;
-  publisher_id: string;
-  instructor_id: string;
-  parents_id?: string | null; // 多个协作者ID用逗号分隔，如 "user1,user2,user3"
+  publisher_id: string | number; // Supabase可能返回string或number类型的ID
+  instructor_id: string | number; // 支持string或number类型
+  parents_ids?: string[] | null; // 协作者ID数组，用于创建到中间表
 }
 
 // 更新成果的请求数据
@@ -101,6 +101,14 @@ export interface AchievementAttachment {
   file_name: string;
   file_url: string;
   file_size: number;
+  created_at: string;
+}
+
+// 成果协作者关系
+export interface AchievementParent {
+  id: string;
+  achievement_id: string;
+  parent_id: string;
   created_at: string;
 }
 

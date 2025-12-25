@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Achievements Parents表功能测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        h1 { text-align: center; margin-bottom: 30px; }
+        h2 { margin-top: 30px; margin-bottom: 15px; }
+        h3 { margin-top: 20px; margin-bottom: 10px; }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .collaborator-item {
+            background: #e3f2fd;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Achievements Parents 中间表功能测试</h1>
+    
+    <div class="container">
+        <h2>📊 数据库统计</h2>
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalAchievements">-</div>
+                <div class="stat-label">总成果数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalRelations">-</div>
+                <div class="stat-label">协作关系数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalCollaborators">-</div>
+                <div class="stat-label">参与协作用户数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="avgCollaborators">-</div>
+                <div class="stat-label">平均协作者数</div>
+            </div>
+        </div>
+        <button onclick="loadStats()">🔄 刷新统计</button>
+    </div>
+
+    <div class="two-column">
+        <div class="container">
+            <h2>➕ 添加协作者关系</h2>
+            <div class="section">
+                <h3>成果ID:</h3>
+                <input type="text" id="achievementId" placeholder="输入成果UUID">
+                
+                <h3>协作者ID列表:</h3>
+                <textarea id="parentIds" rows="3" placeholder="输入协作者UUID，一行一个"></textarea>
+                
+                <h3>或从现有用户选择:</h3>
+                <select id="userSelect" multiple size="4">
+                    <option value="">-- 选择用户 --</option>
+                </select>
+                
+                <button onclick="addCollaborators()">👥 添加协作者</button>
+                <button onclick="loadUsers()">🔄 加载用户列表</button>
+                
+                <div id="addResult" class="result"></div>
+            </div>
+        </div>
+
+        <div class="container">
+            <h2>🔍 查询协作者关系</h2>
+            <div class="section">
+                <h3>按成果ID查询:</h3>
+                <input type="text" id="queryAchievementId" placeholder="输入成果UUID">
+                
+                <h3>或按协作者ID查询:</h3>
+                <input type="text" id="queryParentId" placeholder="输入用户UUID">
+                
+                <button onclick="queryCollaborators()">🔍 查询</button>
+                <button onclick="queryByCollaborator()">👤 查询协作者参与的成果</button>
+                
+                <div id="queryResult" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🗑️ 删除协作者关系</h2>
+        <div class="section">
+            <h3>删除特定成果的所有协作者:</h3>
+            <input type="text" id="deleteAchievementId" placeholder="输入成果UUID">
+            
+            <button onclick="deleteCollaborators()">🗑️ 删除</button>
+            
+            <div id="deleteResult" class="result"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 所有协作者关系</h2>
+        <button onclick="loadAllRelations()">📋 加载所有关系</button>
+        <div id="allRelations" class="result"></div>
+    </div>
+
+    <script>
+        // Supabase 配置 - 请替换为您的实际配置
+        const supabaseUrl = 'https://your-project.supabase.co';
+        const supabaseKey = 'your-anon-key';
+        
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, username, full_name, email')
+                    .eq('role', 1) // 只加载学生
+                    .order('username');
+
+                if (error) {
+                    showResult('userSelect', '加载用户失败: ' + error.message, 'error');
+                    return;
+                }
+
+                const select = document.getElementById('userSelect');
+                select.innerHTML = '<option value="">-- 选择用户 --</option>';
+                
+                data.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = `${user.full_name || user.username} (${user.email})`;
+                    select.appendChild(option);
+                });
+
+                showResult('userSelect', `已加载 ${data.length} 个用户`, 'success');
+            } catch (err) {
+                showResult('userSelect', '加载用户异常: ' + err.message, 'error');
+            }
+        }
+
+        // 添加协作者
+        async function addCollaborators() {
+            const achievementId = document.getElementById('achievementId').value.trim();
+            const parentIdsText = document.getElementById('parentIds').value.trim();
+            const userSelect = document.getElementById('userSelect');
+            const selectedOptions = Array.from(userSelect.selectedOptions);
+
+            if (!achievementId) {
+                showResult('addResult', '请输入成果ID', 'error');
+                return;
+            }
+
+            // 合并所有协作者ID
+            let parentIds = [];
+            if (parentIdsText) {
+                parentIds = parentIdsText.split('\\n').map(id => id.trim()).filter(id => id);
+            }
+            if (selectedOptions.length > 0) {
+                const selectedIds = selectedOptions.map(option => option.value);
+                parentIds = [...new Set([...parentIds, ...selectedIds])]; // 去重
+            }
+
+            if (parentIds.length === 0) {
+                showResult('addResult', '请输入协作者ID', 'error');
+                return;
+            }
+
+            try {
+                const insertData = parentIds.map(parentId => ({
+                    achievement_id: achievementId,
+                    parent_id: parentId
+                }));
+
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .insert(insertData)
+                    .select('*');
+
+                if (error) {
+                    showResult('addResult', '添加失败: ' + error.message, 'error');
+                    return;
+                }
+
+                showResult('addResult', `成功添加 ${data.length} 个协作者关系\\n\\n` + 
+                    JSON.stringify(data, null, 2), 'success');
+                
+                // 清空表单
+                document.getElementById('achievementId').value = '';
+                document.getElementById('parentIds').value = '';
+                userSelect.selectedIndex = 0;
+                
+                // 刷新统计
+                loadStats();
+            } catch (err) {
+                showResult('addResult', '添加异常: ' + err.message, 'error');
+            }
+        }
+
+        // 查询协作者
+        async function queryCollaborators() {
+            const achievementId = document.getElementById('queryAchievementId').value.trim();
+
+            if (!achievementId) {
+                showResult('queryResult', '请输入成果ID', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .select(`
+                        *,
+                        parent:users!parent_id (id, username, full_name, email)
+                    `)
+                    .eq('achievement_id', achievementId);
+
+                if (error) {
+                    showResult('queryResult', '查询失败: ' + error.message, 'error');
+                    return;
+                }
+
+                if (data.length === 0) {
+                    showResult('queryResult', '该成果没有协作者', 'success');
+                    return;
+                }
+
+                const result = `找到 ${data.length} 个协作者:\\n\\n` + 
+                    data.map(item => `- ${item.parent.full_name || item.parent.username} (${item.parent.email})`).join('\\n') +
+                    '\\n\\n详细信息:\\n' + JSON.stringify(data, null, 2);
+
+                showResult('queryResult', result, 'success');
+            } catch (err) {
+                showResult('queryResult', '查询异常: ' + err.message, 'error');
+            }
+        }
+
+        // 查询协作者参与的成果
+        async function queryByCollaborator() {
+            const parentId = document.getElementById('queryParentId').value.trim();
+
+            if (!parentId) {
+                showResult('queryResult', '请输入协作者ID', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .select(`
+                        *,
+                        achievement:achievements!achievement_id (id, title, created_at)
+                    `)
+                    .eq('parent_id', parentId);
+
+                if (error) {
+                    showResult('queryResult', '查询失败: ' + error.message, 'error');
+                    return;
+                }
+
+                if (data.length === 0) {
+                    showResult('queryResult', '该用户没有参与任何成果', 'success');
+                    return;
+                }
+
+                const result = `该用户参与了 ${data.length} 个成果:\\n\\n` + 
+                    data.map(item => `- ${item.achievement.title} (创建于: ${new Date(item.achievement.created_at).toLocaleDateString()})`).join('\\n') +
+                    '\\n\\n详细信息:\\n' + JSON.stringify(data, null, 2);
+
+                showResult('queryResult', result, 'success');
+            } catch (err) {
+                showResult('queryResult', '查询异常: ' + err.message, 'error');
+            }
+        }
+
+        // 删除协作者
+        async function deleteCollaborators() {
+            const achievementId = document.getElementById('deleteAchievementId').value.trim();
+
+            if (!achievementId) {
+                showResult('deleteResult', '请输入成果ID', 'error');
+                return;
+            }
+
+            if (!confirm('确定要删除该成果的所有协作者关系吗？')) {
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('achievements_parents')
+                    .delete()
+                    .eq('achievement_id', achievementId);
+
+                if (error) {
+                    showResult('deleteResult', '删除失败: ' + error.message, 'error');
+                    return;
+                }
+
+                showResult('deleteResult', '已删除该成果的所有协作者关系', 'success');
+                
+                // 清空表单
+                document.getElementById('deleteAchievementId').value = '';
+                
+                // 刷新统计
+                loadStats();
+            } catch (err) {
+                showResult('deleteResult', '删除异常: ' + err.message, 'error');
+            }
+        }
+
+        // 加载所有关系
+        async function loadAllRelations() {
+            try {
+                const { data, error } = await supabase
+                    .from('achievements_parents')
+                    .select(`
+                        *,
+                        achievement:achievements!achievement_id (title),
+                        parent:users!parent_id (username, full_name)
+                    `)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (error) {
+                    showResult('allRelations', '加载失败: ' + error.message, 'error');
+                    return;
+                }
+
+                const result = `最近50个协作关系:\\n\\n` + 
+                    data.map(item => `${item.achievement.title} ← ${item.parent.full_name || item.parent.username}`).join('\\n');
+
+                showResult('allRelations', result, 'success');
+            } catch (err) {
+                showResult('allRelations', '加载异常: ' + err.message, 'error');
+            }
+        }
+
+        // 加载统计信息
+        async function loadStats() {
+            try {
+                // 获取总成果数
+                const { count: achievementCount } = await supabase
+                    .from('achievements')
+                    .select('*', { count: 'exact', head: true });
+
+                // 获取总关系数
+                const { count: relationCount } = await supabase
+                    .from('achievements_parents')
+                    .select('*', { count: 'exact', head: true });
+
+                // 获取不同协作用户数
+                const { data: uniqueCollaborators } = await supabase
+                    .from('achievements_parents')
+                    .select('parent_id')
+                    .not('parent_id', 'is', null);
+
+                const uniqueCollaboratorIds = [...new Set(uniqueCollaborators.map(item => item.parent_id))];
+
+                // 计算平均协作者数
+                const avgCollaborators = achievementCount > 0 ? (relationCount / achievementCount).toFixed(1) : 0;
+
+                // 更新显示
+                document.getElementById('totalAchievements').textContent = achievementCount || 0;
+                document.getElementById('totalRelations').textContent = relationCount || 0;
+                document.getElementById('totalCollaborators').textContent = uniqueCollaboratorIds.length;
+                document.getElementById('avgCollaborators').textContent = avgCollaborators;
+
+            } catch (err) {
+                console.error('统计加载失败:', err);
+            }
+        }
+
+        // 显示结果
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.className = `result ${type}`;
+            element.textContent = message;
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            loadStats();
+            loadUsers();
+        };
+    </script>
+</body>
+</html>

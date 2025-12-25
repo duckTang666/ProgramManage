@@ -25,7 +25,7 @@ interface FormData {
   attachments: FileUpload[];
   typeId: string; // 新增：成果类型ID
   instructorId: string; // 新增：指导老师ID
-  parentsIds: string[]; // 新增：多个协作者学生ID数组
+  parents_ids: string[]; // 新增：多个协作者学生ID数组（匹配CreateAchievementRequest）
 }
 
 // 新增接口定义
@@ -249,7 +249,7 @@ const AchievementPublishPage: React.FC = () => {
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]);
   
   // 数据状态
-  const [isLoading, setIsLoading] = useState(false);
+
   const [isPublishing, setIsPublishing] = useState(false);
   const [achievementTypes, setAchievementTypes] = useState<AchievementType[]>(ACHIEVEMENT_TYPES);
   const [instructors, setInstructors] = useState<User[]>([]);
@@ -323,7 +323,7 @@ const AchievementPublishPage: React.FC = () => {
     attachments: [],
     typeId: '',
     instructorId: '',
-    parentsIds: []
+    parents_ids: []
   });
   
   // 文件输入引用
@@ -389,7 +389,7 @@ const AchievementPublishPage: React.FC = () => {
   const handleStudentsSelect = (studentIds: string[]) => {
     setFormData(prev => ({
       ...prev,
-      parentsIds: studentIds
+      parents_ids: studentIds
     }));
   };
   
@@ -534,7 +534,7 @@ const AchievementPublishPage: React.FC = () => {
       // 处理封面图上传
       let coverUrl = '';
       if (formData.coverImage) {
-        const fileName = `cover_${Date.now()}.${formData.coverImage.name.split('.').pop()}`;
+        const fileName = `cover_${Date.now()}.${(formData.coverImage?.name || 'jpg').split('.').pop()}`;
         const filePath = `achievements/${currentUserId}/${fileName}`;
         const uploadResult = await AchievementService.uploadFile(formData.coverImage, 'achievement-images', filePath);
         
@@ -570,7 +570,7 @@ const AchievementPublishPage: React.FC = () => {
         video_url: '', // 暂时不处理视频
         publisher_id: currentUserId,
         instructor_id: formData.instructorId || instructors[0]?.id || '',
-        parents_id: formData.parentsIds.length > 0 ? formData.parentsIds.join(',') : null
+        parents_ids: formData.parents_ids.length > 0 ? formData.parents_ids : null
       };
       
       const result = await AchievementService.saveDraft(draftData);
@@ -670,7 +670,7 @@ const AchievementPublishPage: React.FC = () => {
       // 处理封面图上传
       let coverUrl = '';
       if (formData.coverImage) {
-        const fileName = `cover_${Date.now()}.${formData.coverImage.name.split('.').pop()}`;
+        const fileName = `cover_${Date.now()}.${(formData.coverImage?.name || 'jpg').split('.').pop()}`;
         const filePath = `achievements/${currentUserId}/${fileName}`;
         const uploadResult = await AchievementService.uploadFile(formData.coverImage, 'achievement-images', filePath);
         
@@ -689,7 +689,7 @@ const AchievementPublishPage: React.FC = () => {
       // 处理视频上传
       let videoUrl = '';
       if (formData.demoVideo) {
-        const fileName = `video_${Date.now()}.${formData.demoVideo.name.split('.').pop()}`;
+        const fileName = `video_${Date.now()}.${(formData.demoVideo?.name || 'mp4').split('.').pop()}`;
         const filePath = `achievements/${currentUserId}/${fileName}`;
         const uploadResult = await AchievementService.uploadFile(formData.demoVideo, 'achievement-videos', filePath);
         
@@ -722,7 +722,7 @@ const AchievementPublishPage: React.FC = () => {
         video_url: videoUrl,
         publisher_id: currentUserId,
         instructor_id: user?.role === 2 ? currentUserId : formData.instructorId, // 教师自己是指导教师
-        parents_id: formData.parentsIds.length > 0 ? formData.parentsIds.join(',') : null
+        parents_ids: formData.parents_ids.length > 0 ? formData.parents_ids : null
       };
       
       // 教师直接发布，学生需要审批
@@ -1036,18 +1036,18 @@ const AchievementPublishPage: React.FC = () => {
                       <div className="space-y-2">
                         <div className="flex items-center">
                           <div className="flex-1 px-4 py-2 border border-border-light rounded-lg bg-bg-gray text-text-muted min-h-[42px] flex items-center flex-wrap gap-2">
-                            {formData.parentsIds.length > 0 ? (
-                              formData.parentsIds.map(studentId => {
-                                const student = students.find(s => s.id === studentId);
-                                return student ? (
-                                  <span key={studentId} className="bg-secondary bg-opacity-20 text-secondary px-2 py-1 rounded-full text-sm">
-                                    {student.full_name || student.username}
-                                  </span>
-                                ) : null;
-                              })
-                            ) : (
-                              <span className="text-gray-400">可选：从学生列表中选择协作者</span>
-                            )}
+                          {formData.parents_ids.length > 0 ? (
+                            formData.parents_ids.map(studentId => {
+                              const student = students.find(s => s.id === studentId);
+                              return student ? (
+                                <span key={studentId} className="bg-secondary bg-opacity-20 text-secondary px-2 py-1 rounded-full text-sm">
+                                  {student.full_name || student.username}
+                                </span>
+                              ) : null;
+                            })
+                          ) : (
+                            <span className="text-gray-400">可选：从学生列表中选择协作者</span>
+                          )}
                           </div>
                           <button 
                             onClick={() => setShowStudentModal(true)}
@@ -1498,7 +1498,7 @@ const AchievementPublishPage: React.FC = () => {
         isOpen={showStudentModal}
         users={students}
         title="选择学生协作者"
-        selectedUserIds={formData.parentsIds}
+        selectedUserIds={formData.parents_ids}
         onSelect={handleStudentsSelect}
         onClose={() => setShowStudentModal(false)}
       />
