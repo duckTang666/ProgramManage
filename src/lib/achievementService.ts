@@ -1355,7 +1355,24 @@ export class AchievementService {
         status: this.convertStatusFromNumber(achievement.status as AchievementStatusCode)
       }));
 
-      return { success: true, data: processedData };
+      // 为每个成果获取协作者信息
+      const achievementsWithParents = await Promise.all(
+        (processedData || []).map(async (achievement) => {
+          try {
+            const parentResult = await this.getAchievementParents(achievement.id);
+            if (parentResult.success && parentResult.data) {
+              const parents = parentResult.data.map(item => item.parent).filter(Boolean);
+              achievement.parents = parents;
+            }
+          } catch (error) {
+            console.warn(`获取成果 ${achievement.id} 的协作者信息失败:`, error);
+            achievement.parents = [];
+          }
+          return achievement;
+        })
+      );
+
+      return { success: true, data: achievementsWithParents };
     } catch (error) {
       console.error('Error fetching all achievements:', error);
       return { success: false, message: error instanceof Error ? error.message : '获取所有成果失败' };
