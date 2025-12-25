@@ -121,13 +121,20 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
   if (!isOpen) return null;
 
   const handleUserToggle = (userId: string) => {
+    console.log('🔧 切换协作者选择:', { userId, currentSelection: tempSelected });
+    
     const newSelectedIds = tempSelected.includes(userId)
       ? tempSelected.filter(id => id !== userId)
       : [...tempSelected, userId];
+    
+    console.log('🔧 更新后的选择:', newSelectedIds);
     setTempSelected(newSelectedIds);
   };
 
   const handleConfirmSelect = () => {
+    console.log('🔧 确认协作者选择 - 最终选择:', tempSelected);
+    console.log('🔧 确认协作者选择 - 数量:', tempSelected.length);
+    
     // 点击确认按钮时才真正更新选择
     onSelect(tempSelected);
   };
@@ -422,11 +429,18 @@ const AchievementPublishPage: React.FC = () => {
 
   // 确认学生选择（点击加号按钮时调用）
   const handleStudentsConfirmSelect = async (studentIds: string[]) => {
+    console.log('🔧 确认协作者选择 - 原始数组:', studentIds);
+    console.log('🔧 协作者数量:', studentIds.length);
+    
     // 更新表单数据
-    setFormData(prev => ({
-      ...prev,
-      parents_ids: studentIds
-    }));
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        parents_ids: studentIds
+      };
+      console.log('🔧 更新后的表单数据 parents_ids:', newData.parents_ids);
+      return newData;
+    });
     
     // 获取选中的协作者详细信息
     try {
@@ -435,6 +449,7 @@ const AchievementPublishPage: React.FC = () => {
         return student;
       }).filter(Boolean);
       
+      console.log('🔧 协作者详细信息:', collaboratorDetails);
       setConfirmedCollaborators(collaboratorDetails);
     } catch (error) {
       console.error('获取协作者详细信息失败:', error);
@@ -793,6 +808,12 @@ const AchievementPublishPage: React.FC = () => {
         instructor_id: user?.role === 2 ? currentUserId : formData.instructorId, // 教师自己是指导教师
         parents_ids: formData.parents_ids.length > 0 ? formData.parents_ids : null
       };
+      
+      console.log('🚀 准备创建成果 - 协作者数据:', {
+        parents_ids: formData.parents_ids,
+        collaborator_count: formData.parents_ids.length,
+        collaborator_details: confirmedCollaborators
+      });
       
       // 教师直接发布，学生需要审批
       const directPublish = user?.role === 2; // 教师直接发布

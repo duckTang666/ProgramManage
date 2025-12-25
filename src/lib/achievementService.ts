@@ -369,11 +369,9 @@ export class AchievementService {
     parentIds: string[]
   ): Promise<{ success: boolean; data?: AchievementParent[]; message?: string }> {
     try {
-      if (parentIds.length === 0) {
-        return { success: true, data: [] };
-      }
-
-      console.log('🔗 添加协作者关系:', { achievementId, parentIds });
+      console.log('🔗 添加协作者关系 - 成果ID:', achievementId);
+      console.log('🔗 添加协作者关系 - 协作者ID列表:', parentIds);
+      console.log('🔗 添加协作者关系 - 协作者数量:', parentIds.length);
 
       // 准备插入数据
       const insertData = parentIds.map(parentId => ({
@@ -381,7 +379,14 @@ export class AchievementService {
         parent_id: parentId             // 协作者用户UUID
       }));
 
-      console.log('📝 准备插入achievements_parents表的数据:', insertData);
+      console.log('📝 准备插入achievements_parents表的数据:');
+      insertData.forEach((item, index) => {
+        console.log(`📝 记录${index + 1}:`, {
+          achievement_id: item.achievement_id,
+          parent_id: item.parent_id,
+          created_at: '自动生成'
+        });
+      });
 
       const { data, error } = await supabase
         .from('achievements_parents')
@@ -394,7 +399,16 @@ export class AchievementService {
         return { success: false, message: `添加协作者失败: ${error.message}` };
       }
 
-      console.log('✅ 协作者关系添加成功:', data);
+      console.log('✅ 协作者关系添加成功，插入结果:');
+      data?.forEach((item, index) => {
+        console.log(`✅ 插入成功记录${index + 1}:`, {
+          id: item.id,                    // 自增ID：1, 2, 3...
+          achievement_id: item.achievement_id,
+          parent_id: item.parent_id,
+          created_at: item.created_at
+        });
+      });
+      
       return { success: true, data: data as AchievementParent[] };
     } catch (error) {
       console.error('❌ addAchievementParents异常:', error);
@@ -702,9 +716,19 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 如果有协作者，全部保存到achievements_parents中间表
-      if (data && parents_ids && parents_ids.length > 0) {
-        const parentResult = await this.addAchievementParents(data.id, parents_ids);
+      // 总是在achievements_parents表中创建至少一行记录
+      if (data) {
+        let parentIdsToInsert: string[] = [];
+        
+        if (parents_ids && parents_ids.length > 0) {
+          // 如果有协作者，使用选中的协作者
+          parentIdsToInsert = parents_ids;
+        } else {
+          // 如果没有协作者，使用固定的默认值
+          parentIdsToInsert = ['31f21c59-f3c4-44c9-91e8-b72f8891bce7'];
+        }
+        
+        const parentResult = await this.addAchievementParents(data.id, parentIdsToInsert);
         if (!parentResult.success) {
           console.warn('Failed to add achievement parents:', parentResult.message);
           // 不阻止成果创建，但记录警告
@@ -793,9 +817,19 @@ export class AchievementService {
         throw new Error(errorMessage);
       }
 
-      // 如果有协作者，保存到achievements_parents中间表
-      if (data && parents_ids && parents_ids.length > 0) {
-        const parentResult = await this.addAchievementParents(data.id, parents_ids);
+      // 总是在achievements_parents表中创建至少一行记录
+      if (data) {
+        let parentIdsToInsert: string[] = [];
+        
+        if (parents_ids && parents_ids.length > 0) {
+          // 如果有协作者，使用选中的协作者
+          parentIdsToInsert = parents_ids;
+        } else {
+          // 如果没有协作者，使用固定的默认值
+          parentIdsToInsert = ['31f21c59-f3c4-44c9-91e8-b72f8891bce7'];
+        }
+        
+        const parentResult = await this.addAchievementParents(data.id, parentIdsToInsert);
         if (!parentResult.success) {
           console.warn('Failed to add achievement parents for draft:', parentResult.message);
           // 不阻止草稿保存，但记录警告
