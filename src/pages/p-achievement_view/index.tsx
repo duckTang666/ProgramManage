@@ -155,7 +155,9 @@ const AchievementViewPage: React.FC = () => {
   const filteredAchievements = achievements.filter(achievement => {
     const matchesType = !searchFilters.type || (achievement as any).achievement_types?.name?.includes(searchFilters.type);
     const matchesName = !searchFilters.name || achievement.title.toLowerCase().includes(searchFilters.name.toLowerCase());
-    const matchesStudent = !searchFilters.student || (achievement as any).users?.username?.toLowerCase().includes(searchFilters.student.toLowerCase());
+    const matchesStudent = !searchFilters.student || 
+      ((achievement as any).publisher?.full_name?.toLowerCase().includes(searchFilters.student.toLowerCase()) ||
+       (achievement as any).publisher?.username?.toLowerCase().includes(searchFilters.student.toLowerCase()));
     return matchesType && matchesName && matchesStudent;
   });
 
@@ -503,10 +505,10 @@ const AchievementViewPage: React.FC = () => {
                           <td className="py-4 px-4 w-2/12">
                             <div>
                               <p className="text-sm font-medium text-text-primary truncate">
-                                {(achievement as any).users?.full_name || (achievement as any).users?.username || '未知学生'}
+                                {(achievement as any).publisher?.full_name || (achievement as any).publisher?.username || '未知学生'}
                               </p>
                               <p className="text-xs text-text-muted truncate">
-                                {(achievement as any).users?.email || ''}
+                                {(achievement as any).publisher?.email || ''}
                               </p>
                             </div>
                           </td>
