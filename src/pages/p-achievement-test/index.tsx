@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AchievementService } from '../../lib/achievementService';
+import { uploadToAchievementVideosBucket } from '../../services/supabaseStorageService';
 
 const UploadTestPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -72,7 +73,7 @@ const UploadTestPage: React.FC = () => {
       
       addResult(`📁 文件信息: ${fileName} (${(testFile.size / 1024).toFixed(2)}KB)`);
       
-      const result = await AchievementService.uploadFile(testFile, 'achievement-videos', filePath);
+      const result = await uploadToAchievementVideosBucket(testFile, fileName, filePath, true);
       
       if (result.success) {
         addResult(`✅ 视频上传成功！`);

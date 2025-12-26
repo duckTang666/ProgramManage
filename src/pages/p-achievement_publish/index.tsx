@@ -7,6 +7,7 @@ import { RichTextEditor } from '../../lib/richTextEditor';
 import { ACHIEVEMENT_TYPES, AchievementType, User } from '../../types/achievement';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApproval } from '../../contexts/ApprovalContext';
+import { uploadToAchievementVideosBucket } from '../../services/supabaseStorageService';
 import styles from './styles.module.css';
 
 interface FileUpload {
@@ -859,7 +860,7 @@ const AchievementPublishPage: React.FC = () => {
       if (formData.demoVideo) {
         const fileName = `video_${Date.now()}.${(formData.demoVideo?.name || 'mp4').split('.').pop()}`;
         const filePath = `achievements/${currentUserId}/${fileName}`;
-        const uploadResult = await AchievementService.uploadFile(formData.demoVideo, 'achievement-videos', filePath);
+        const uploadResult = await uploadToAchievementVideosBucket(formData.demoVideo, fileName, filePath, true);
         
         if (uploadResult.success && uploadResult.url) {
           videoUrl = uploadResult.url;

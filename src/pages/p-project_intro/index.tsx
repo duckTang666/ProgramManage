@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { AchievementService } from '../../lib/achievementService';
 import { AchievementType, User } from '../../types/achievement';
-import { uploadToAchievementImagesBucket, checkAchievementImagesBucket, createAchievementImagesBucket } from '../../services/supabaseStorageService';
+import { uploadToAchievementImagesBucket, uploadToAchievementVideosBucket, checkAchievementImagesBucket, createAchievementImagesBucket } from '../../services/supabaseStorageService';
 import styles from './styles.module.css';
 
 interface Collaborator {
@@ -884,8 +884,8 @@ const ProjectIntroPage: React.FC = () => {
           return;
         }
         
-        // 使用统一的文件上传方法（模仿封面图和附件上传）
-        const uploadResult = await AchievementService.uploadFile(demoVideo.file, 'achievement-videos', filePath);
+        // 使用专门的视频上传方法（模仿封面图片上传）
+        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           videoUrl = uploadResult.url;
@@ -1070,8 +1070,8 @@ const ProjectIntroPage: React.FC = () => {
           return;
         }
         
-        // 使用统一的文件上传方法（模仿封面图和附件上传）
-        const uploadResult = await AchievementService.uploadFile(demoVideo.file, 'achievement-videos', filePath);
+        // 使用专门的视频上传方法（模仿封面图片上传）
+        const uploadResult = await uploadToAchievementVideosBucket(demoVideo.file, fileName, filePath, directUseBucket);
         
         if (uploadResult.success && uploadResult.url) {
           videoUrl = uploadResult.url;

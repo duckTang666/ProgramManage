@@ -900,6 +900,7 @@ export const uploadToAchievementVideosBucket = async (file: File, fileName?: str
     });
 
     // 检查桶是否存在（除非跳过检查）
+    // 注意：achievement-videos存储桶已存在，可以跳过检查以提高性能
     if (!skipCheck) {
       console.log('🔍 执行achievement-videos存储桶检查...');
       const bucketExists = await checkAchievementVideosBucket();
