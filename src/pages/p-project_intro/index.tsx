@@ -131,6 +131,11 @@ const ProjectIntroPage: React.FC = () => {
   const [editingAchievementId, setEditingAchievementId] = useState<string>('');
   const [originalAchievement, setOriginalAchievement] = useState<any>(null); // 保存原始成果信息
   
+  // 协作者搜索功能状态
+  const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [collaboratorSearchQuery, setCollaboratorSearchQuery] = useState('');
+  const [tempSelectedCollaborators, setTempSelectedCollaborators] = useState<string[]>([]);
+  
 
   
   // 页面标题设置
@@ -613,6 +618,70 @@ const ProjectIntroPage: React.FC = () => {
   // 获取选中的协作者ID数组
   const getSelectedCollaboratorIds = (): string[] => {
     return collaborators.map(c => c.id);
+  };
+
+  // 协作者搜索过滤逻辑 - 按姓名第一个字搜索
+  const getFilteredCollaboratorUsers = (): User[] => {
+    if (!collaboratorSearchQuery.trim()) {
+      return collaboratorUsers;
+    }
+    
+    const searchQuery = collaboratorSearchQuery.trim();
+    return collaboratorUsers.filter(user => {
+      const fullName = user.full_name || user.username || '';
+      
+      // 优先级搜索：
+      // 1. 姓名第一个字完全匹配
+      // 2. 完整姓名包含搜索内容
+      // 3. 用户名匹配
+      const firstCharExactMatch = fullName.charAt(0) === searchQuery;
+      const fullMatch = fullName.includes(searchQuery);
+      const usernameMatch = user.username && 
+        user.username.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      return firstCharExactMatch || fullMatch || usernameMatch;
+    });
+  };
+
+  // 打开协作者选择模态框
+  const openCollaboratorModal = () => {
+    setTempSelectedCollaborators(getSelectedCollaboratorIds());
+    setCollaboratorSearchQuery('');
+    setShowCollaboratorModal(true);
+  };
+
+  // 确认选择协作者
+  const confirmCollaboratorSelection = () => {
+    const selectedUsers = collaboratorUsers.filter(user => 
+      tempSelectedCollaborators.includes(user.id)
+    );
+    
+    const newCollaborators = selectedUsers.map(user => ({
+      id: user.id,
+      name: user.full_name || user.username
+    }));
+    
+    setCollaborators(newCollaborators);
+    setShowCollaboratorModal(false);
+  };
+
+  // 切换协作者选择状态
+  const toggleCollaboratorSelection = (userId: string) => {
+    if (tempSelectedCollaborators.includes(userId)) {
+      setTempSelectedCollaborators(tempSelectedCollaborators.filter(id => id !== userId));
+    } else {
+      setTempSelectedCollaborators([...tempSelectedCollaborators, userId]);
+    }
+  };
+
+  // 清空搜索
+  const clearCollaboratorSearch = () => {
+    setCollaboratorSearchQuery('');
+  };
+
+  // 关闭模态框
+  const closeCollaboratorModal = () => {
+    setShowCollaboratorModal(false);
   };
 
   // 照片上传（封面图片，只处理第一张图片）
@@ -1438,28 +1507,22 @@ const ProjectIntroPage: React.FC = () => {
                   )}
                 </label>
                 <div className="flex space-x-2">
-                  <select 
-                    value={selectedCollaboratorId}
-                    onChange={(e) => setSelectedCollaboratorId(e.target.value)}
-                    className={`flex-1 px-4 py-3 border border-border-light rounded-lg ${styles.searchInputFocus} ${styles.customSelect}`}
-                  >
-                    <option value="">请选择协作者</option>
-                    {collaboratorUsers
-                      .filter(user => user.id !== projectLeaderId && !collaborators.find(c => c.id === user.id)) // 排除项目负责人和已选择的协作者
-                      .map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.full_name || user.username} ({user.email})
-                      </option>
-                    ))}
-                  </select>
                   <button 
-                    onClick={addCollaborator}
-                    className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    disabled={!selectedCollaboratorId}
+                    onClick={openCollaboratorModal}
+                    className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                   >
-                    <i className="fas fa-plus mr-2"></i>
-                    添加协作者
+                    <i className="fas fa-search mr-2"></i>
+                    选择协作者
                   </button>
+                  {collaborators.length > 0 && (
+                    <button 
+                      onClick={() => setCollaborators([])}
+                      className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      <i className="fas fa-times mr-2"></i>
+                      清空协作者
+                    </button>
+                  )}
                 </div>
                 {collaborators.length > 0 && (
                   <div className="mt-3">
@@ -1827,6 +1890,115 @@ const ProjectIntroPage: React.FC = () => {
         </div>
       </main>
       
+      {/* 协作者选择模态框 */}
+      {showCollaboratorModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+            <h3 className="text-lg font-semibold text-text-primary mb-4">选择协作者</h3>
+            
+            {/* 搜索框 */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={collaboratorSearchQuery}
+                  onChange={(e) => setCollaboratorSearchQuery(e.target.value)}
+                  placeholder="输入协作者姓名第一个字搜索，如'张'查找张姓学生"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                {collaboratorSearchQuery && (
+                  <button
+                    onClick={clearCollaboratorSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+              {collaboratorSearchQuery && (
+                <p className="text-xs text-gray-500 mt-1">
+                  找到 {getFilteredCollaboratorUsers().length} 个匹配的学生
+                </p>
+              )}
+            </div>
+            
+            {/* 用户列表 */}
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 max-h-[50vh]">
+              {getFilteredCollaboratorUsers().length === 0 ? (
+                <div className="text-center py-8">
+                  <i className="fas fa-user-slash text-3xl text-gray-400 mb-2"></i>
+                  <p className="text-gray-500">没有找到匹配的学生</p>
+                  <p className="text-xs text-gray-400 mt-1">请尝试其他搜索关键词</p>
+                </div>
+              ) : (
+                getFilteredCollaboratorUsers()
+                  .filter(user => user.id !== projectLeaderId) // 排除项目负责人
+                  .map(user => (
+                    <div key={user.id} className="flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                      <input 
+                        type="checkbox" 
+                        id={`collaborator-${user.id}`}
+                        checked={tempSelectedCollaborators.includes(user.id)}
+                        onChange={() => toggleCollaboratorSelection(user.id)}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor={`collaborator-${user.id}`} className="ml-3 flex-1 cursor-pointer">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-800">
+                              {user.full_name || user.username}
+                              {collaboratorSearchQuery && (
+                                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full">
+                                  {(user.full_name || user.username).charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500">{user.email}</div>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  ))
+              )}
+            </div>
+            
+            {/* 底部操作栏 */}
+            <div className="flex justify-between items-center mb-4 pt-4 border-t border-gray-200">
+              <span className="text-sm text-gray-500">
+                已选择 {tempSelectedCollaborators.length} 位协作者
+              </span>
+              <div className="flex space-x-2">
+                {tempSelectedCollaborators.length > 0 && (
+                  <button 
+                    onClick={() => setTempSelectedCollaborators([])}
+                    className="text-sm text-red-500 hover:text-red-600"
+                  >
+                    清空选择
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-between space-x-4">
+              <button 
+                onClick={closeCollaboratorModal}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button 
+                onClick={confirmCollaboratorSelection}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+              >
+                <i className="fas fa-plus mr-2"></i>
+                确认添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 全屏加载遮罩 - 仅在发布时显示 */}
       {isSubmitting && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">

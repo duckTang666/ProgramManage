@@ -121,23 +121,23 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
     }
   }, [isOpen, selectedUserIds]);
 
-  // 过滤用户列表 - 按姓名首字母或完整姓名搜索
+  // 过滤用户列表 - 专注于按姓名第一个字搜索
   const filteredUsers = users.filter(user => {
     if (!searchQuery.trim()) return true;
     
-    const searchLower = searchQuery.toLowerCase().trim();
+    const searchQueryTrimmed = searchQuery.trim();
     const fullName = user.full_name || user.username || '';
-    const fullNameLower = fullName.toLowerCase();
     
-    // 支持以下搜索方式：
-    // 1. 姓名首字母匹配 (如 "z" 匹配 "张三")
-    // 2. 完整姓名匹配 (如 "张三" 匹配 "张三")
+    // 优先级搜索：
+    // 1. 姓名第一个字完全匹配 (如 "张" 匹配 "张三")
+    // 2. 完整姓名包含搜索内容 (如 "张三" 匹配 "张三丰")
     // 3. 用户名匹配
-    return (
-      fullName.includes(searchQuery) ||              // 精确匹配（支持中文字符）
-      fullNameLower.includes(searchLower) ||         // 模糊匹配（转换为小写）
-      (user.username && user.username.toLowerCase().includes(searchLower))
-    );
+    const firstCharExactMatch = fullName.charAt(0) === searchQueryTrimmed;
+    const fullMatch = fullName.includes(searchQueryTrimmed);
+    const usernameMatch = user.username && user.username.toLowerCase().includes(searchQueryTrimmed.toLowerCase());
+    
+    // 优先显示第一个字匹配的结果
+    return firstCharExactMatch || fullMatch || usernameMatch;
   });
 
   if (!isOpen) return null;
@@ -187,7 +187,7 @@ const MultiUserSelectModal: React.FC<MultiUserSelectModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="按姓名首字母或完整姓名搜索..."
+              placeholder="输入协作者姓名第一个字搜索，如'张'查找张姓学生"
               className="w-full pl-10 pr-10 py-2 border border-border-light rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary transition-all"
             />
             <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted"></i>
