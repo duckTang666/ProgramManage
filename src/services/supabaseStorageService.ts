@@ -30,7 +30,13 @@ const preprocessVideoFile = async (file: File, maxSize: number = 100 * 1024 * 10
   suggestedSize: number;
 }> => {
   const originalSize = file.size;
-  const suggestedSize = maxSize;
+  const suggestedSize = Math.min(maxSize, 50 * 1024 * 1024); // 建议不超过50MB
+  
+  console.log('🎬 视频预处理开始:', {
+    原始大小: `${(originalSize / 1024 / 1024).toFixed(2)}MB`,
+    最大限制: `${(maxSize / 1024 / 1024).toFixed(2)}MB`,
+    建议大小: `${(suggestedSize / 1024 / 1024).toFixed(2)}MB`
+  });
   
   // 验证视频格式
   const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
@@ -43,29 +49,44 @@ const preprocessVideoFile = async (file: File, maxSize: number = 100 * 1024 * 10
     };
   }
   
-  // 检查文件大小
+  // 检查文件大小 - 使用更严格的检查
   if (file.size > maxSize) {
     const overSize = (file.size - maxSize) / 1024 / 1024;
     const compressionRatio = ((file.size - maxSize) / file.size * 100).toFixed(1);
     
     return {
       valid: false,
-      message: `视频文件过大: ${(file.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)。建议压缩比例: ${compressionRatio}%。推荐使用以下工具压缩：
-      
+      message: `视频文件过大: ${(file.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)。需要压缩: ${overSize.toFixed(2)}MB。建议压缩比例: ${compressionRatio}%。
+
 🎯 推荐压缩工具:
-• HandBrake (免费, 跨平台)
+• HandBrake (免费, 跨平台) - 推荐使用
 • 格式工厂 (Windows)
 • 在线压缩: tinywow.com/video-compressor
 • iMovie/Mac 自带剪辑软件
 
-📱 压缩建议:
-• 分辨率: 1280x720 或更低
+📱 压缩设置建议:
+• 分辨率: 1280x720 (720p) 或更低
 • 码率: 2-5 Mbps
-• 帧率: 24-30 fps`,
+• 帧率: 24-30 fps
+• 格式: H.264 MP4
+
+⚡ 快速压缩:
+如果工具使用困难，建议将视频分割为多个片段或选择更小的原文件。`,
       originalSize,
       suggestedSize
     };
   }
+  
+  // 对于较大的文件（>50MB），显示警告但仍允许上传
+  if (file.size > suggestedSize) {
+    console.warn(`⚠️ 视频文件较大: ${(file.size / 1024 / 1024).toFixed(2)}MB，建议压缩到${(suggestedSize / 1024 / 1024).toFixed(2)}MB以下以提高上传成功率`);
+  }
+  
+  console.log('✅ 视频预处理完成:', {
+    最终大小: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+    格式: file.type,
+    状态: file.size > suggestedSize ? '较大，建议压缩' : '合适'
+  });
   
   return {
     valid: true,
@@ -956,21 +977,73 @@ WITH (
       预计耗时: `${Math.round(processedFile.size / 1024 / 1024 * 10)}秒`
     });
     
-    // 上传文件
+    // 上传文件 - 增加超时处理和重试机制
     const startTime = Date.now();
-    const { error } = await supabase.storage
-      .from('achievement-videos')
-      .upload(finalFilePath, processedFile, {
-        cacheControl: '3600',
-        upsert: true, // 允许覆盖，支持更新视频
-      });
+    let retryCount = 0;
+    const maxRetries = 3;
+    let error = null;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`📤 尝试上传 (${retryCount + 1}/${maxRetries})...`);
+        
+        // 设置超时控制器
+        const uploadPromise = supabase.storage
+          .from('achievement-videos')
+          .upload(finalFilePath, processedFile, {
+            cacheControl: '3600',
+            upsert: true, // 允许覆盖，支持更新视频
+          });
+
+        // 添加超时处理（大文件上传需要更长时间）
+        const timeoutMs = Math.max(300000, processedFile.size / 1024 * 2); // 至少5分钟，或每KB 2ms
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('上传超时，请检查网络连接或尝试更小的视频文件')), timeoutMs)
+        );
+
+        const result = await Promise.race([uploadPromise, timeoutPromise]);
+        
+        if (result.error) {
+          throw result.error;
+        }
+
+        // 上传成功，跳出重试循环
+        error = null;
+        break;
+        
+      } catch (err) {
+        error = err;
+        retryCount++;
+        
+        if (retryCount < maxRetries) {
+          const waitTime = retryCount * 2000; // 递增等待时间
+          console.log(`❌ 上传失败，${waitTime}ms后重试...`, err);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
 
     const uploadTime = Date.now() - startTime;
-    console.log(`上传耗时: ${uploadTime}ms`);
+    console.log(`上传总耗时: ${uploadTime}ms`);
 
     if (error) {
       console.error('上传到achievement-videos桶失败:', error);
-      return { success: false, error: `上传失败: ${error.message}` };
+      
+      // 提供更详细的错误诊断
+      let errorMessage = `上传失败: ${error.message}`;
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = `网络连接失败，请检查网络连接或尝试更小的视频文件。错误详情: ${error.message}`;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = `上传超时，请尝试更小的视频文件或检查网络连接。建议视频大小小于50MB。`;
+      } else if (error.message.includes('Bucket not found') || error.message.includes('bucket does not exist')) {
+        errorMessage = 'achievement-videos存储桶不存在，请检查Supabase控制台';
+      } else if (error.message.includes('permission') || error.message.includes('PGRST301')) {
+        errorMessage = '权限不足，请检查存储桶的RLS策略';
+      } else if (error.message.includes('file too large')) {
+        errorMessage = '文件过大，请选择小于100MB的视频';
+      }
+      
+      return { success: false, error: errorMessage };
     }
 
     // 获取公共URL
@@ -987,7 +1060,7 @@ WITH (
     };
   } catch (error) {
     console.error('上传到achievement-videos桶时发生错误:', error);
-    return { success: false, error: '上传过程中发生未知错误' };
+    return { success: false, error: `上传过程中发生未知错误: ${error.message}` };
   }
 };
 
