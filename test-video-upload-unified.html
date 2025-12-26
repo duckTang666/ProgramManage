@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统一视频上传测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .log { 
+            background: #1e1e1; 
+            color: #d4d4d4; 
+            padding: 15px; 
+            border-radius: 4px; 
+            font-family: 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #007bff;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .file-input:hover {
+            background: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 统一视频上传测试</h1>
+        
+        <div class="test-section info">
+            <h3>📋 测试说明</h3>
+            <p>此页面使用AchievementService.uploadFile方法测试视频上传功能，与封面图和附件上传保持一致。</p>
+            <ul>
+                <li>使用统一的uploadFile方法</li>
+                <li>支持200MB视频文件</li>
+                <li>支持MP4、MOV、AVI、WebM格式</li>
+                <li>直接上传到Supabase（不使用代理）</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>📹 视频上传测试</h3>
+            <div class="file-input">
+                <label for="videoFile">选择视频文件 (最大200MB):</label><br>
+                <input type="file" id="videoFile" accept="video/*" onchange="handleFileSelect(this)">
+                <div id="fileInfo"></div>
+            </div>
+            
+            <button onclick="testVideoUpload()" id="uploadBtn" disabled>🚀 开始上传</button>
+            <button onclick="clearLog()">🗑️ 清除日志</button>
+            <button onclick="testSmallVideo()">🧪 测试小视频 (1MB)</button>
+            <button onclick="testLargeVideo()">🧪 测试大视频 (5MB)</button>
+            
+            <div id="upload-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 实时日志</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 模拟AchievementService
+        const SUPABASE_URL = 'https://onest.selfroom.top';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
+        
+        const log = document.getElementById('log');
+        const uploadResult = document.getElementById('upload-result');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        
+        let selectedFile = null;
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #888">[${timestamp}]</span> ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[VideoUpload] ${message}`);
+        }
+
+        function showResult(title, content, isSuccess) {
+            const section = document.createElement('div');
+            section.className = `test-section ${isSuccess ? 'success' : 'error'}`;
+            section.innerHTML = `
+                <h4>${title}</h4>
+                <pre>${JSON.stringify(content, null, 2)}</pre>
+            `;
+            uploadResult.appendChild(section);
+        }
+
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (file) {
+                selectedFile = file;
+                uploadBtn.disabled = false;
+                
+                fileInfo.innerHTML = `
+                    <strong>已选择文件:</strong><br>
+                    📄 名称: ${file.name}<br>
+                    📊 大小: ${(file.size / 1024 / 1024).toFixed(2)}MB<br>
+                    🎬 类型: ${file.type}<br>
+                    📅 修改时间: ${new Date(file.lastModified).toLocaleString()}
+                `;
+                
+                addLog(`📁 选择文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+            }
+        }
+
+        // 模拟AchievementService.uploadFile方法
+        async function uploadFile(file, bucket, path) {
+            addLog(`🚀 开始上传文件: ${file.name}`);
+            addLog(`📍 目标存储桶: ${bucket}`);
+            addLog(`📂 文件路径: ${path}`);
+            
+            try {
+                // 验证文件大小
+                const maxSize = bucket === 'achievement-videos' ? 200 * 1024 * 1024 : 5 * 1024 * 1024;
+                if (file.size > maxSize) {
+                    const maxSizeMB = maxSize / (1024 * 1024);
+                    return {
+                        success: false,
+                        message: `❌ 文件过大！\n\n文件大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\n最大限制: ${maxSizeMB}MB\n\n💡 建议：压缩文件或选择更小的文件。`
+                    };
+                }
+                
+                // 验证文件类型
+                const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
+                if (bucket === 'achievement-videos' && !allowedVideoTypes.includes(file.type)) {
+                    return {
+                        success: false,
+                        message: `❌ 文件类型不支持！\n\n当前文件类型: ${file.type}\n支持的视频格式: MP4, MOV, AVI, WebM`
+                    };
+                }
+                
+                addLog(`✅ 文件验证通过，开始上传到Supabase...`);
+                
+                // 构造FormData用于上传
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // 直接上传到Supabase存储
+                const uploadPath = `${path}`;
+                const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${uploadPath}`;
+                
+                addLog(`📤 上传URL: ${uploadUrl}`);
+                
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY
+                    },
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                addLog(`✅ 上传成功，获取公共URL...`);
+                
+                // 获取公共URL
+                const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${uploadPath}`;
+                
+                addLog(`🔗 公共URL: ${publicUrl}`);
+                
+                return {
+                    success: true,
+                    url: publicUrl
+                };
+                
+            } catch (error) {
+                addLog(`❌ 上传失败: ${error.message}`);
+                return {
+                    success: false,
+                    message: `上传失败: ${error.message}`
+                };
+            }
+        }
+
+        async function testVideoUpload() {
+            if (!selectedFile) {
+                alert('请先选择一个视频文件！');
+                return;
+            }
+            
+            addLog('🎥 开始视频上传测试...');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '⏳ 上传中...';
+            
+            const fileName = `video_${Date.now()}_${selectedFile.name}`;
+            const filePath = `achievements/test-user/${fileName}`;
+            
+            const result = await uploadFile(selectedFile, 'achievement-videos', filePath);
+            
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = '🚀 开始上传';
+            
+            if (result.success) {
+                addLog(`🎉 视频上传成功！`);
+                showResult('视频上传测试成功', {
+                    fileName: selectedFile.name,
+                    fileSize: `${(selectedFile.size / 1024 / 1024).toFixed(2)}MB`,
+                    uploadUrl: result.url,
+                    timestamp: new Date().toLocaleString()
+                }, true);
+                
+                // 添加视频预览
+                const videoSection = document.createElement('div');
+                videoSection.className = 'test-section success';
+                videoSection.innerHTML = `
+                    <h4>🎬 视频预览</h4>
+                    <video controls style="max-width: 100%; height: auto;">
+                        <source src="${result.url}" type="${selectedFile.type}">
+                        您的浏览器不支持视频播放。
+                    </video>
+                    <p><a href="${result.url}" target="_blank">🔗 在新标签页中打开视频</a></p>
+                `;
+                uploadResult.appendChild(videoSection);
+            } else {
+                addLog(`❌ 视频上传失败: ${result.message}`);
+                showResult('视频上传测试失败', {
+                    fileName: selectedFile.name,
+                    error: result.message,
+                    timestamp: new Date().toLocaleString()
+                }, false);
+            }
+        }
+
+        // 创建测试小视频
+        function createTestVideo(sizeMB) {
+            const blob = new Blob(['fake video data'], { type: 'video/mp4' });
+            const file = new File([blob], `test-video-${sizeMB}MB.mp4`, { type: 'video/mp4' });
+            return file;
+        }
+
+        async function testSmallVideo() {
+            addLog('🧪 测试1MB小视频上传...');
+            const smallVideo = createTestVideo(1);
+            
+            const fileName = `small-test-video-${Date.now()}.mp4`;
+            const filePath = `achievements/test-user/${fileName}`;
+            
+            const result = await uploadFile(smallVideo, 'achievement-videos', filePath);
+            
+            if (result.success) {
+                addLog(`✅ 小视频测试成功！`);
+                showResult('1MB视频测试成功', {
+                    size: '1MB',
+                    url: result.url
+                }, true);
+            } else {
+                addLog(`❌ 小视频测试失败: ${result.message}`);
+            }
+        }
+
+        async function testLargeVideo() {
+            addLog('🧪 测试5MB大视频上传...');
+            const largeVideo = createTestVideo(5);
+            
+            const fileName = `large-test-video-${Date.now()}.mp4`;
+            const filePath = `achievements/test-user/${fileName}`;
+            
+            const result = await uploadFile(largeVideo, 'achievement-videos', filePath);
+            
+            if (result.success) {
+                addLog(`✅ 大视频测试成功！`);
+                showResult('5MB视频测试成功', {
+                    size: '5MB',
+                    url: result.url
+                }, true);
+            } else {
+                addLog(`❌ 大视频测试失败: ${result.message}`);
+            }
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+            uploadResult.innerHTML = '';
+            addLog('🗑️ 日志已清除');
+        }
+
+        // 页面加载时的初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            addLog('🚀 统一视频上传测试页面已加载');
+            addLog('📡 使用AchievementService.uploadFile方法');
+            addLog('🎯 直接上传到Supabase（无代理）');
+            addLog('📝 请选择视频文件开始测试');
+        });
+
+        // 导出到全局作用域
+        window.testVideoUpload = testVideoUpload;
+        window.testSmallVideo = testSmallVideo;
+        window.testLargeVideo = testLargeVideo;
+        window.clearLog = clearLog;
+    </script>
+</body>
+</html>
