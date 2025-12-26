@@ -181,10 +181,8 @@ export const uploadToNewImagesBucket = async (file: File, fileName?: string): Pr
       return { success: false, error: `上传失败: ${error.message}` };
     }
 
-    // 获取公共URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('new-images')
-      .getPublicUrl(finalFileName);
+    // 获取公共URL - 使用新的存储桶URL格式
+    const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${finalFileName}`;
 
     console.log('图片上传到new-images桶成功:', publicUrl);
     
@@ -252,11 +250,8 @@ export const listNewImages = async (): Promise<StorageFile[]> => {
  * @returns 公共URL
  */
 export const getNewImagesUrl = (fileName: string): string => {
-  const { data: { publicUrl } } = supabase.storage
-    .from('new-images')
-    .getPublicUrl(fileName);
-  
-  return publicUrl;
+  // 使用新的存储桶URL格式
+  return `https://onest.selfroom.top/project/default/storage/files/public/${fileName}`;
 };
 
 /**
@@ -413,10 +408,8 @@ export const uploadToNewsImagesBucket = async (file: File, fileName?: string): P
       return { success: false, error: `上传失败: ${error.message}` };
     }
 
-    // 获取公共URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('news-images')
-      .getPublicUrl(finalFileName);
+    // 获取公共URL - 使用新的存储桶URL格式
+    const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${finalFileName}`;
 
     console.log('图片上传到news-images桶成功:', publicUrl);
     console.log(`总处理时间: ${Date.now() - startTime}ms`);
@@ -488,11 +481,8 @@ export const listNewsImages = async (): Promise<StorageFile[]> => {
  * @returns 公共URL
  */
 export const getNewsImageUrl = (fileName: string): string => {
-  const { data: { publicUrl } } = supabase.storage
-    .from('news-images')
-    .getPublicUrl(fileName);
-  
-  return publicUrl;
+  // 使用新的存储桶URL格式
+  return `https://onest.selfroom.top/project/default/storage/files/public/${fileName}`;
 };
 
 /**
@@ -775,10 +765,8 @@ WITH (
       return { success: false, error: errorMessage };
     }
 
-    // 获取公共URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('achievement-images')
-      .getPublicUrl(finalFilePath);
+    // 获取公共URL - 使用新的存储桶URL格式
+    const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${finalFilePath}`;
 
     console.log('图片上传到achievement-images桶成功:', publicUrl);
     
@@ -1046,10 +1034,8 @@ WITH (
       return { success: false, error: errorMessage };
     }
 
-    // 获取公共URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('achievement-videos')
-      .getPublicUrl(finalFilePath);
+    // 获取公共URL - 使用新的存储桶URL格式
+    const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${finalFilePath}`;
 
     console.log('视频上传到achievement-videos桶成功:', publicUrl);
     

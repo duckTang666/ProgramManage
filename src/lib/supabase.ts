@@ -32,6 +32,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       });
     },
   },
+  // 配置自定义存储桶URL
+  storage: {
+    url: 'https://onest.selfroom.top/project/default/storage/files',
+  },
 });
 
 // 新闻分类表接口

@@ -346,10 +346,8 @@ export class BannerService {
 
       console.log(`✅ 轮播图上传成功: ${file.name}`);
 
-      // 获取公共URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('banners')
-        .getPublicUrl(filePath);
+      // 获取公共URL - 使用新的存储桶URL格式
+      const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${filePath}`;
 
       console.log(`🔗 获取公共URL成功: ${publicUrl}`);
 

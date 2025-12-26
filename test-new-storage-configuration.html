@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新存储桶配置测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .bucket-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .bucket-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        .bucket-card h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .bucket-info {
+            font-size: 14px;
+            color: #666;
+        }
+        .file-test {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🗄️ 新存储桶配置测试</h1>
+    
+    <div class="container">
+        <h2>📊 存储桶信息</h2>
+        <button onclick="testStorageConfiguration()">🔍 测试存储桶配置</button>
+        <div id="storageStatus"></div>
+        <div id="bucketList" class="bucket-list"></div>
+    </div>
+
+    <div class="container">
+        <h2>📤 文件上传测试</h2>
+        <button onclick="testAllBuckets()">🎯 测试所有存储桶</button>
+        <div id="uploadTestResults"></div>
+    </div>
+
+    <!-- Supabase配置 -->
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // 新的 Supabase 配置
+        const SUPABASE_URL = 'https://onest.selfroom.top/';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
+        const STORAGE_BASE_URL = 'https://onest.selfroom.top/project/default/storage/files';
+        const STORAGE_PUBLIC_URL = 'https://onest.selfroom.top/project/default/storage/files/public';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            storage: {
+                url: STORAGE_BASE_URL,
+            },
+        });
+
+        // 存储桶配置
+        const BUCKETS = {
+            'new-images': { name: '新闻图片', maxSize: 5242880, types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] },
+            'news-images': { name: '新闻管理图片', maxSize: 5242880, types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] },
+            'achievement-images': { name: '成果封面图片', maxSize: 10485760, types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] },
+            'achievement-videos': { name: '成果演示视频', maxSize: 52428800, types: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'] },
+            'achievement_attachments': { name: '成果附件', maxSize: 52428800, types: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'] },
+            'banners': { name: '轮播图', maxSize: 5242880, types: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] },
+        };
+
+        // 测试存储桶配置
+        window.testStorageConfiguration = async function() {
+            const statusDiv = document.getElementById('storageStatus');
+            const bucketListDiv = document.getElementById('bucketList');
+            
+            statusDiv.innerHTML = '<div class="status info">🔍 正在检查存储桶配置...</div>';
+
+            try {
+                const { data: buckets, error } = await supabase.storage.listBuckets();
+                
+                if (error) {
+                    statusDiv.innerHTML = `<div class="status error">❌ 获取存储桶列表失败: ${error.message}</div>`;
+                    return;
+                }
+
+                statusDiv.innerHTML = '<div class="status success">✅ 存储桶配置检查完成</div>';
+                
+                // 显示存储桶列表
+                let bucketHtml = '';
+                Object.entries(BUCKETS).forEach(([bucketKey, config]) => {
+                    const bucket = buckets?.find(b => b.name === bucketKey);
+                    const exists = bucket ? '✅ 存在' : '❌ 不存在';
+                    const isPublic = bucket ? (bucket.public ? '✅ 公开' : '❌ 私有') : '❌';
+                    const sizeLimit = bucket ? `${(bucket.file_size_limit / 1024 / 1024).toFixed(1)}MB` : '未知';
+                    
+                    bucketHtml += `
+                        <div class="bucket-card">
+                            <h4>${config.name} (${bucketKey})</h4>
+                            <div class="bucket-info">
+                                <div>状态: ${exists}</div>
+                                <div>访问: ${isPublic}</div>
+                                <div>大小限制: ${sizeLimit}</div>
+                                <div>支持格式: ${config.types.join(', ')}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                bucketListDiv.innerHTML = bucketHtml;
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ 检查失败: ${error.message}</div>`;
+            }
+        };
+
+        // 测试所有存储桶上传
+        window.testAllBuckets = async function() {
+            const resultsDiv = document.getElementById('uploadTestResults');
+            resultsDiv.innerHTML = '<div class="status info">📤 正在测试所有存储桶上传...</div>';
+
+            let results = '';
+            
+            for (const [bucketKey, config] of Object.entries(BUCKETS)) {
+                try {
+                    // 创建测试文件
+                    const testContent = `Test file for ${bucketKey} bucket - ${new Date().toISOString()}`;
+                    const mimeType = config.types[0]; // 使用第一个允许的类型
+                    const blob = new Blob([testContent], { type: mimeType });
+                    const testFile = new File([blob], `test-${bucketKey}-${Date.now()}.${mimeType.split('/')[1] || 'bin'}`, { type: mimeType });
+                    
+                    const fileName = `test/${Date.now()}-${bucketKey}-test.${mimeType.split('/')[1] || 'bin'}`;
+                    
+                    console.log(`📤 测试上传到 ${bucketKey}:`, fileName);
+                    
+                    // 尝试上传
+                    const startTime = Date.now();
+                    const { data, error } = await supabase.storage
+                        .from(bucketKey)
+                        .upload(fileName, testFile, {
+                            cacheControl: '3600',
+                            upsert: true
+                        });
+                    
+                    const uploadTime = Date.now() - startTime;
+                    
+                    if (error) {
+                        results += `
+                            <div class="status error">
+                                ❌ ${config.name} 上传失败<br>
+                                <small>错误: ${error.message} | 耗时: ${uploadTime}ms</small>
+                            </div>
+                        `;
+                    } else {
+                        // 获取公共URL
+                        const publicUrl = `${STORAGE_PUBLIC_URL}/${fileName}`;
+                        
+                        results += `
+                            <div class="status success">
+                                ✅ ${config.name} 上传成功<br>
+                                <small>大小: ${(testFile.size / 1024).toFixed(2)}KB | 耗时: ${uploadTime}ms</small><br>
+                                <small>URL: <a href="${publicUrl}" target="_blank">${publicUrl}</a></small>
+                            </div>
+                        `;
+                        
+                        // 清理测试文件
+                        setTimeout(async () => {
+                            try {
+                                await supabase.storage
+                                    .from(bucketKey)
+                                    .remove([fileName]);
+                                console.log(`🧹 清理测试文件: ${fileName}`);
+                            } catch (e) {
+                                console.warn('清理文件失败:', e);
+                            }
+                        }, 5000);
+                    }
+                    
+                } catch (error) {
+                    results += `
+                        <div class="status error">
+                            ❌ ${config.name} 测试异常<br>
+                            <small>错误: ${error.message}</small>
+                        </div>
+                    `;
+                }
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="status info">📊 存储桶上传测试完成</div>
+                ${results}
+                <div class="status warning">
+                    ⚠️ 测试文件将在5秒后自动清理
+                </div>
+            `;
+        };
+
+        // 页面加载时自动运行配置检查
+        window.addEventListener('load', function() {
+            setTimeout(testStorageConfiguration, 500);
+        });
+    </script>
+</body>
+</html>

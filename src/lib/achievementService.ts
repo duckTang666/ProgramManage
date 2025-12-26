@@ -677,16 +677,20 @@ export class AchievementService {
         };
       }
 
-      // 使用直接fetch上传，避免Supabase客户端的CORS问题
+      // 使用新的存储桶URL上传
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const storageBaseUrl = 'https://onest.selfroom.top/project/default/storage/files';
       
-      console.log('🔄 使用直接fetch上传（避免CORS）...');
+      console.log('🔄 使用新的存储桶URL上传...');
+      console.log('📡 存储桶URL:', storageBaseUrl);
+      console.log('📂 上传路径:', path);
       
       const formData = new FormData();
       formData.append('file', file);
       
-      const uploadUrl = `${supabaseUrl}/storage/v1/object/${path}`;
+      // 使用新的存储桶URL格式
+      const uploadUrl = `${storageBaseUrl}/${path}`;
       
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -726,8 +730,8 @@ export class AchievementService {
 
       console.log(`✅ 文件上传成功: ${file.name}`);
 
-      // 获取公共URL
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/${path}`;
+      // 获取公共URL - 使用新的存储桶URL格式
+      const publicUrl = `https://onest.selfroom.top/project/default/storage/files/public/${path}`;
       console.log(`🔗 生成公共URL: ${publicUrl}`);
 
       return { success: true, url: publicUrl };
