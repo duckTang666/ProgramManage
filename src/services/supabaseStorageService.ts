@@ -880,7 +880,7 @@ export const createAchievementVideosBucket = async (): Promise<boolean> => {
     const { error } = await supabase.storage.createBucket('achievement-videos', {
       public: true, // 设置为公开访问
       allowedMimeTypes: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'], // 允许常见视频格式
-      fileSizeLimit: 200 * 1024 * 1024, // 限制文件大小为200MB
+      fileSizeLimit: 50 * 1024 * 1024, // 限制文件大小为50MB
     });
 
     if (error) {
@@ -905,7 +905,7 @@ export const uploadToAchievementVideosBucket = async (file: File, fileName?: str
     });
 
     // 视频预处理和验证
-    const videoValidation = await preprocessVideoFile(file, 100 * 1024 * 1024);
+    const videoValidation = await preprocessVideoFile(file, 50 * 1024 * 1024);
     
     if (!videoValidation.valid) {
       console.error('❌ 视频验证失败:', videoValidation.message);

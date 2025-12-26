@@ -640,7 +640,7 @@ export class AchievementService {
       console.log(`文件类型: ${file.type}`);
       
       // 验证文件大小（根据存储桶类型设置不同限制）
-      const maxSize = bucket === 'achievement-videos' ? 200 * 1024 * 1024 : 
+      const maxSize = bucket === 'achievement-videos' ? 50 * 1024 * 1024 : 
                      bucket === 'achievement-images' ? 5 * 1024 * 1024 :  // 图片5MB
                      bucket === 'achievement_attachments' ? 50 * 1024 * 1024 : 5 * 1024 * 1024; // 文档50MB
       if (file.size > maxSize) {
@@ -705,7 +705,7 @@ export class AchievementService {
         let errorMessage = '文件上传失败';
         
         if (response.status === 413) {
-          const sizeLimit = bucket === 'achievement-videos' ? '200MB' : 
+          const sizeLimit = bucket === 'achievement-videos' ? '50MB' : 
                           bucket === 'achievement_attachments' ? '50MB' : '5MB';
           errorMessage = `❌ 文件过大！\\n\\n当前大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\\n限制大小: ${sizeLimit}\\n\\n💡 请压缩文件或选择更小的文件。`;
         } else if (response.status === 400) {
