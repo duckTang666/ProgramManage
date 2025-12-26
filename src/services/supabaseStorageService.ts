@@ -16,6 +16,65 @@ export interface UploadResult {
   error?: string;
 }
 
+/**
+ * 视频预处理和验证
+ * @param file 原始视频文件
+ * @param maxSize 最大文件大小（字节）
+ * @returns 处理结果
+ */
+const preprocessVideoFile = async (file: File, maxSize: number = 100 * 1024 * 1024): Promise<{ 
+  valid: boolean; 
+  file?: File; 
+  message?: string; 
+  originalSize: number; 
+  suggestedSize: number;
+}> => {
+  const originalSize = file.size;
+  const suggestedSize = maxSize;
+  
+  // 验证视频格式
+  const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+  if (!allowedVideoTypes.includes(file.type)) {
+    return {
+      valid: false,
+      message: `不支持的视频格式: ${file.type}，请使用 MP4、WebM、OGG 或 MOV 格式`,
+      originalSize,
+      suggestedSize
+    };
+  }
+  
+  // 检查文件大小
+  if (file.size > maxSize) {
+    const overSize = (file.size - maxSize) / 1024 / 1024;
+    const compressionRatio = ((file.size - maxSize) / file.size * 100).toFixed(1);
+    
+    return {
+      valid: false,
+      message: `视频文件过大: ${(file.size / 1024 / 1024).toFixed(2)}MB (限制: ${(maxSize / 1024 / 1024).toFixed(2)}MB)。建议压缩比例: ${compressionRatio}%。推荐使用以下工具压缩：
+      
+🎯 推荐压缩工具:
+• HandBrake (免费, 跨平台)
+• 格式工厂 (Windows)
+• 在线压缩: tinywow.com/video-compressor
+• iMovie/Mac 自带剪辑软件
+
+📱 压缩建议:
+• 分辨率: 1280x720 或更低
+• 码率: 2-5 Mbps
+• 帧率: 24-30 fps`,
+      originalSize,
+      suggestedSize
+    };
+  }
+  
+  return {
+    valid: true,
+    file,
+    originalSize,
+    suggestedSize
+  };
+};
+
 // =====================================
 // new-images 存储桶相关功能
 // =====================================
@@ -818,16 +877,27 @@ export const createAchievementVideosBucket = async (): Promise<boolean> => {
 
 export const uploadToAchievementVideosBucket = async (file: File, fileName?: string, filePath?: string, skipCheck?: boolean): Promise<UploadResult> => {
   try {
-    // 验证文件类型
-    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
-    if (!allowedVideoTypes.includes(file.type)) {
-      return { success: false, error: '只能上传视频文件（MP4、WebM、OGG、MOV格式）' };
+    console.log('🎥 开始视频上传处理:', {
+      文件名: file.name,
+      文件类型: file.type,
+      文件大小: `${(file.size / 1024 / 1024).toFixed(2)}MB`
+    });
+
+    // 视频预处理和验证
+    const videoValidation = await preprocessVideoFile(file, 100 * 1024 * 1024);
+    
+    if (!videoValidation.valid) {
+      console.error('❌ 视频验证失败:', videoValidation.message);
+      return { success: false, error: videoValidation.message };
     }
 
-    // 验证文件大小（100MB）
-    if (file.size > 100 * 1024 * 1024) {
-      return { success: false, error: '视频大小不能超过100MB' };
-    }
+    const processedFile = videoValidation.file!;
+    
+    console.log('✅ 视频验证通过:', {
+      原始大小: `${(videoValidation.originalSize / 1024 / 1024).toFixed(2)}MB`,
+      处理后大小: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+      文件类型: processedFile.type
+    });
 
     // 检查桶是否存在（除非跳过检查）
     if (!skipCheck) {
@@ -874,16 +944,22 @@ WITH (
     // 生成唯一文件名和路径
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 8);
-    const finalFileName = fileName || `${timestamp}_${randomString}_${file.name}`;
+    const fileExtension = processedFile.name.split('.').pop() || 'mp4';
+    const baseFileName = fileName ? fileName.replace(/\.[^/.]+$/, '') : processedFile.name.replace(/\.[^/.]+$/, '');
+    const finalFileName = `${baseFileName}_${timestamp}_${randomString}.${fileExtension}`;
     const finalFilePath = filePath || `achievements/${finalFileName}`;
     
-    console.log('开始上传到achievement-videos桶:', finalFilePath);
+    console.log('🚀 开始上传到achievement-videos桶:', {
+      文件路径: finalFilePath,
+      文件大小: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
+      预计耗时: `${Math.round(processedFile.size / 1024 / 1024 * 10)}秒`
+    });
     
     // 上传文件
     const startTime = Date.now();
     const { error } = await supabase.storage
       .from('achievement-videos')
-      .upload(finalFilePath, file, {
+      .upload(finalFilePath, processedFile, {
         cacheControl: '3600',
         upsert: true, // 允许覆盖，支持更新视频
       });
