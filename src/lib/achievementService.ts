@@ -631,7 +631,7 @@ export class AchievementService {
     }
   }
 
-  // 上传文件到Supabase Storage
+  // 上传文件到Supabase Storage - 使用直接fetch避免CORS问题
   static async uploadFile(file: File, bucket: string, path: string): Promise<{ success: boolean; url?: string; message?: string }> {
     try {
       console.log(`开始上传文件: ${file.name} 到存储桶: ${bucket}`);
@@ -677,32 +677,45 @@ export class AchievementService {
         };
       }
 
-      // 尝试上传文件
-      const { error, data } = await supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          upsert: true,
-          contentType: file.type
-        });
+      // 使用直接fetch上传，避免Supabase客户端的CORS问题
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      console.log('🔄 使用直接fetch上传（避免CORS）...');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/${path}`;
+      
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey
+        },
+        body: formData
+      });
 
-      if (error) {
-        console.error(`上传失败，错误详情:`, error);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`HTTP上传失败: ${response.status} ${response.statusText}`, errorText);
         
-        // 详细错误处理
+        // HTTP错误处理
         let errorMessage = '文件上传失败';
         
-        if (error.message.includes('Bucket not found') || error.message.includes('bucket does not exist')) {
-          errorMessage = `❌ 存储桶 "${bucket}" 不存在！\n\n🔧 解决方案：\n1. 打开 Supabase 控制台: https://supabase.com/dashboard\n2. 选择项目 → 进入 Storage 页面\n3. 创建存储桶 "${bucket}"\n4. 运行 fix-storage-policies.sql 文件设置权限\n\n⏳ 完成后请重新尝试上传。`;
-        } else if (error.message.includes('row-level security') || error.message.includes('permission') || error.message.includes('PGRST301')) {
-          errorMessage = `❌ 权限不足！\n\n🔧 解决方案：\n1. 打开 Supabase 控制台的 SQL 编辑器\n2. 运行 fix-storage-policies.sql 文件\n3. 确保存储桶设置为公开访问\n\n💡 这将更新存储桶的访问权限策略。`;
-        } else if (error.message.includes('file too large') || error.message.includes('size')) {
+        if (response.status === 413) {
           const sizeLimit = bucket === 'achievement-videos' ? '200MB' : 
                           bucket === 'achievement_attachments' ? '50MB' : '5MB';
-          errorMessage = `❌ 文件过大！\n\n当前大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\n限制大小: ${sizeLimit}\n\n💡 请压缩文件或选择更小的文件。`;
-        } else if (error.message.includes('invalid format') || error.message.includes('mime')) {
-          errorMessage = `❌ 文件格式不支持！\n\n当前格式: ${file.type}\n${bucket === 'achievement-images' ? '支持格式: JPG, PNG, GIF, WebP' : bucket === 'achievement_attachments' ? '支持格式: PDF, DOC, DOCX' : '支持格式: MP4, MOV, AVI, WebM'}\n\n💡 请转换文件格式后重试。`;
-        } else if (error.message.includes('Invalid key') || error.message.includes('key')) {
-          errorMessage = `❌ 文件名包含无效字符！\n\n问题: 文件路径中包含空格或特殊字符\n解决方案: 系统已自动修复文件名，请重新尝试上传\n\n💡 建议使用英文文件名避免此问题。`;
+          errorMessage = `❌ 文件过大！\\n\\n当前大小: ${(file.size / 1024 / 1024).toFixed(2)}MB\\n限制大小: ${sizeLimit}\\n\\n💡 请压缩文件或选择更小的文件。`;
+        } else if (response.status === 400) {
+          if (errorText.includes('Bucket not found') || errorText.includes('bucket does not exist')) {
+            errorMessage = `❌ 存储桶 "${bucket}" 不存在！\\n\\n🔧 解决方案：\\n1. 打开 Supabase 控制台: https://supabase.com/dashboard\\n2. 选择项目 → 进入 Storage 页面\\n3. 创建存储桶 "${bucket}"\\n4. 运行 fix-storage-policies.sql 文件设置权限\\n\\n⏳ 完成后请重新尝试上传。`;
+          } else if (errorText.includes('invalid format') || errorText.includes('mime')) {
+            errorMessage = `❌ 文件格式不支持！\\n\\n当前格式: ${file.type}\\n${bucket === 'achievement-images' ? '支持格式: JPG, PNG, GIF, WebP' : bucket === 'achievement_attachments' ? '支持格式: PDF, DOC, DOCX' : '支持格式: MP4, MOV, AVI, WebM'}\\n\\n💡 请转换文件格式后重试。`;
+          }
+        } else if (response.status === 403) {
+          errorMessage = `❌ 权限不足！\\n\\n🔧 解决方案：\\n1. 打开 Supabase 控制台的 SQL 编辑器\\n2. 运行 fix-storage-policies.sql 文件\\n3. 确保存储桶设置为公开访问\\n\\n💡 这将更新存储桶的访问权限策略。`;
         }
         
         return { 
@@ -712,14 +725,10 @@ export class AchievementService {
       }
 
       console.log(`✅ 文件上传成功: ${file.name}`);
-      console.log(`上传数据:`, data);
 
       // 获取公共URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-
-      console.log(`🔗 获取公共URL成功: ${publicUrl}`);
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/${path}`;
+      console.log(`🔗 生成公共URL: ${publicUrl}`);
 
       return { success: true, url: publicUrl };
     } catch (error) {
