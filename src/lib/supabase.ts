@@ -13,6 +13,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'Accept': 'application/json',
     },
+    fetch: (url, options) => {
+      // 在开发环境下，如果是storage请求，增加超时时间以支持大文件上传
+      const isStorageRequest = url?.includes('/storage/v1/');
+      const timeout = isStorageRequest ? 300000 : 15000; // 存储请求5分钟，其他请求15秒
+      
+      return fetch(url, {
+        ...options,
+        // 添加超时配置
+        signal: AbortSignal.timeout(timeout),
+      });
+    },
   },
   db: {
     schema: 'public',
@@ -21,16 +32,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-  },
-  // 添加请求重试配置
-  global: {
-    fetch: (url, options) => {
-      return fetch(url, {
-        ...options,
-        // 添加超时配置
-        signal: AbortSignal.timeout(15000), // 15秒超时
-      });
-    },
   },
 });
 
